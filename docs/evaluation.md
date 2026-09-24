@@ -20,8 +20,13 @@ FPR, confusion matrix, alerts per 1,000, % fraud amount caught, expected cost.
 Accuracy is never a headline metric.
 
 ## Cost
+```
+Expected cost = Σ Amount(missed fraud)      ← money lost on false negatives
+              + review_cost × (TP + FP)     ← analyst time for every alert
+```
 expected_cost = sum(Amount of FN) + review_cost × (TP + FP)
 review_cost default €5 (assumption); sensitivity at €2, €5, €20.
+An alert is raised when fraud probability >= threshold.
 
 ## Threshold rule
 Grid 0.01–0.95 step 0.01 on valid_thr. Choose min expected_cost subject to

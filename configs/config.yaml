@@ -6,6 +6,8 @@ paths:
   models_dir: models
   figures_dir: reports/figures
   metrics_dir: reports/metrics
+  mlflow_db: mlflow.db
+  mlflow_artifacts_dir: mlartifacts
 
 seed: 42
 

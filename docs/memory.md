@@ -11,10 +11,12 @@
 ## Data facts (fill in Phase 2/4)
 - Rows after dedupe: 283,726 (raw 284,807) — source: reports/metrics/data_summary.json
 - Duplicates dropped (fraud among them): 1,081 (19). Fraud after dedupe: 473 (rate 0.001667)
-- Fraud count per part — stratified:      time:
+- Fraud count per part (train/valid/test) — stratified: 284/94/95   time: 342/57/74
+  (source: reports/metrics/splits_*.json)
 
 ## Results log (fill as you go)
-- Phase 5 baselines (valid PR-AUC):
+- Phase 5 baselines (valid PR-AUC, strat / time): dummy 0.0017 / 0.0010, logreg 0.7882 / 0.7806,
+  iforest 0.1291 / 0.0231 — source: reports/metrics/experiments.csv
 - Phase 6 winner + reason:
 - Phase 7 tuned valid PR-AUC:
 - Phase 8 calibration kept? Brier before/after:
@@ -23,8 +25,6 @@
 - Phase 9 final test metrics:
 - Phase 11 p95 latency:
 - Live URL:
-
-## Open issues
 
 ## Phase 1 decisions (2026-09-24)
 - Repo lives at fraude/fraud-detection-guide/fraud-detection-system (guide files stay outside the repo).
@@ -56,3 +56,30 @@
 - EDA Amount histogram uses per-class share weights, not density=True (log bins have unequal widths).
 - Findings cell in notebooks/01_eda.ipynb is left for the human to write.
 - Notebook generated/executed with: jupyter nbconvert --to notebook --execute --inplace notebooks/01_eda.ipynb
+
+## Phase 4 decisions (2026-09-24)
+- Splits keep the clean-dataset row index (written into parquet) as a traceable row id.
+- stratified: two train_test_split calls (test 0.2, then valid 0.25 of rest), seed from config.
+- time: stable sort on Time, cut at round(0.6n) and round(0.8n). Boundary Times can tie
+  (valid max = test min = 145,234 s): same-second rows may sit on both sides of a cut.
+- Time split fraud rate is NOT constant: train 0.201%, valid 0.100%, test 0.130%.
+- valid_cal / valid_thr (50/50 of valid, evaluation.md) not built yet — belongs to Phase 8.
+
+## Phase 5 decisions (2026-09-24)
+- MLflow backend: SQLite (mlflow.db) + artifacts in mlartifacts/ — NOT file:./mlruns.
+  Reason: MLflow 3.16 blocks the file store by default (maintenance mode). Human chose SQLite.
+  UI: mlflow ui --backend-store-uri sqlite:///mlflow.db
+- MLflow saves sklearn models with skops; trusted types allow-listed explicitly in train.py
+  (imblearn Pipeline, IsolationForestScorer, sklearn.tree._tree.Tree). Reload verified.
+- All models are imblearn Pipelines (ready for SMOTE in Phase 6).
+- iforest: fit without labels; score = -score_samples, min-max scaled on TRAIN, clipped to [0,1].
+  It is a ranking score, not a probability; threshold 0.5 on it is arbitrary.
+- Phase 5 compares at fixed threshold 0.5; threshold-dependent metrics (precision/recall/cost)
+  are NOT a fair comparison between models — rank by PR-AUC only.
+- Metric edge cases: precision/recall/f1 = 0 on zero division; PR/ROC-AUC = NaN if one class.
+
+## Open issues
+- Time-split valid has only 57 fraud; halving for valid_cal/valid_thr leaves ~28 fraud for
+  threshold selection → recall >= 0.85 estimate will be noisy (1 fraud ≈ 3.5 pp recall).
+- RESOLVED 2026-09-24: Fraude_detection gitlink removed (commit 68f2930); README conflict
+  markers removed and €5 review-cost assumption stated (uncommitted at time of writing).

@@ -27,6 +27,8 @@ class PathsConfig:
     models_dir: Path
     figures_dir: Path
     metrics_dir: Path
+    mlflow_db: Path
+    mlflow_artifacts_dir: Path
 
 
 @dataclass(frozen=True)
