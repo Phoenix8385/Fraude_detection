@@ -17,7 +17,13 @@
 ## Results log (fill as you go)
 - Phase 5 baselines (valid PR-AUC, strat / time): dummy 0.0017 / 0.0010, logreg 0.7882 / 0.7806,
   iforest 0.1291 / 0.0231 — source: reports/metrics/experiments.csv
-- Phase 6 winner + reason:
+- Phase 6 winner + reason: xgb_weighted. Time split (headline) valid PR-AUC 0.7880 — best of
+  all models; +0.0082 vs plain xgb (0.7798), +0.0107 vs xgb_smote_10, +0.0174 vs xgb_smote,
+  +0.0074 vs logreg. Stratified: 0.8888, 0.0011 behind plain xgb (0.8899). Margins are small
+  vs 57 time-valid frauds, so treated as a near-tie; weighted chosen because it leads on the
+  headline split and is the simplest imbalance fix (one parameter, no synthetic rows).
+  SMOTE was slowest (~7.5–7.8 s vs ~4 s fit) and lowest on time. Both xgb_weighted and xgb
+  go to Phase 7 tuning. Source: reports/metrics/model_comparison.md
 - Phase 7 tuned valid PR-AUC:
 - Phase 8 calibration kept? Brier before/after:
 - Phase 8 frozen threshold (strat / time):

@@ -87,7 +87,6 @@ def run_experiment(
     train = load_part(split_name, "train", config.paths.processed_dir)
     valid = load_part(split_name, "valid", config.paths.processed_dir)
     X_train, y_train = train[MODEL_FEATURES], train[TARGET]
-    X_valid, y_valid = valid[MODEL_FEATURES], valid[TARGET]
 
     params = {"random_state": config.seed} if model_name in SEEDED_MODELS else {}
     # Weight computed from TRAIN labels only: valid/test class balance must not leak in.
@@ -98,6 +97,32 @@ def run_experiment(
     model.fit(X_train, y_train)
     fit_seconds = time.perf_counter() - start
 
+    phase = "6" if model_name in XGB_NAMES else "5"
+    return score_and_log(
+        model, model_name, split_name, train, valid, fit_seconds, config, tags={"phase": phase}
+    )
+
+
+def score_and_log(
+    model: Any,
+    model_name: str,
+    split_name: str,
+    train: pd.DataFrame,
+    valid: pd.DataFrame,
+    fit_seconds: float,
+    config: Config,
+    tags: dict[str, str],
+    extra_params: dict[str, Any] | None = None,
+    extra_metrics: dict[str, float] | None = None,
+    artifacts: list[Path] | None = None,
+) -> dict[str, Any]:
+    """Score a FITTED model on validation, log run to MLflow, append to experiments.csv.
+
+    model_name is the label used in MLflow and the CSV (e.g. "xgb_weighted_tuned").
+    Returns the CSV row.
+    """
+    y_train = train[TARGET]
+    X_valid, y_valid = valid[MODEL_FEATURES], valid[TARGET]
     proba = model.predict_proba(X_valid)[:, 1]
     metrics = compute_metrics(
         y_valid,
@@ -108,8 +133,7 @@ def run_experiment(
     )
 
     with mlflow.start_run(run_name=f"{model_name}_{split_name}") as run:
-        phase = "6" if model_name in XGB_NAMES else "5"
-        mlflow.set_tags({"phase": phase, "model": model_name, "split": split_name})
+        mlflow.set_tags({**tags, "model": model_name, "split": split_name})
         mlflow.log_params(
             {
                 "model": model_name,
@@ -125,10 +149,13 @@ def run_experiment(
                     for step, estimator in model.named_steps.items()
                     for k, v in estimator.get_params().items()
                 },
+                **(extra_params or {}),
             }
         )
-        mlflow.log_metrics({**metrics, "fit_seconds": fit_seconds})
-        sample = X_train.head(100)
+        mlflow.log_metrics({**metrics, **(extra_metrics or {}), "fit_seconds": fit_seconds})
+        for path in artifacts or []:
+            mlflow.log_artifact(str(path))
+        sample = train[MODEL_FEATURES].head(100)
         mlflow.sklearn.log_model(
             model,
             name="model",

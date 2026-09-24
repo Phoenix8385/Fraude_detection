@@ -1,0 +1,21 @@
+{
+  "model": "xgb_weighted",
+  "split": "stratified",
+  "best_params": {
+    "subsample": 0.7,
+    "n_estimators": 700,
+    "min_child_weight": 1,
+    "max_depth": 5,
+    "learning_rate": 0.05,
+    "colsample_bytree": 1.0
+  },
+  "cv": "StratifiedKFold",
+  "cv_folds": 5,
+  "n_iter": 20,
+  "cv_pr_auc_mean": 0.848164721559139,
+  "cv_pr_auc_std": 0.06713234228648357,
+  "valid_pr_auc_tuned": 0.8873392577289638,
+  "valid_pr_auc_untuned": 0.8887925609535987,
+  "search_seconds": 389.6,
+  "mlflow_run_id": "11f6b15e81f44bff9ba89b3039241955"
+}
