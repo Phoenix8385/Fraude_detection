@@ -46,3 +46,13 @@
 - Duplicates = identical in ALL 31 columns incl. Class (same features + different label is kept).
 - Summary has two extra keys beyond the spec: rows_raw, duplicate_fraud_dropped.
 - Real CSV passed schema: no nulls, Amount >= 0, Time >= 0, Class in {0,1}.
+
+## Phase 3 decisions (2026-09-24)
+- features.py: log_amount = log1p(Amount), hour_of_day = (Time // 3600) % 24. MODEL_FEATURES = 32 cols.
+- CAVEAT: Time = seconds since first transaction, not clock time. hour_of_day is a 24h cycle
+  from dataset start; it matches real clock hours only if the data starts at midnight (undocumented).
+- EDA "top 10 by |mean difference|" uses z-scored features (raw diffs are unit-dependent);
+  raw diffs printed alongside in the notebook.
+- EDA Amount histogram uses per-class share weights, not density=True (log bins have unequal widths).
+- Findings cell in notebooks/01_eda.ipynb is left for the human to write.
+- Notebook generated/executed with: jupyter nbconvert --to notebook --execute --inplace notebooks/01_eda.ipynb

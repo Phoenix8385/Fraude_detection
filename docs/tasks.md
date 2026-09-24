@@ -2,7 +2,7 @@
 
 - [x] Phase 1 — Repo, environment, config, context docs
 - [x] Phase 2 — Data loading, Pandera validation, dedupe
-- [ ] Phase 3 — EDA notebook, figures, engineered features
+- [x] Phase 3 — EDA notebook, figures, engineered features
 - [ ] Phase 4 — Stratified + time-based splits
 - [ ] Phase 5 — Metrics module, baselines (dummy, logreg, iforest), MLflow
 - [ ] Phase 6 — XGBoost plain / weighted / SMOTE / SMOTE-0.1 comparison
@@ -15,4 +15,4 @@
 - [ ] Phase 13 — Render deploy, drift check, README, resume bullets
 
 ## Current phase
-Phase 2 complete (2026-09-24) — awaiting confirmation before Phase 3
+Phase 3 complete (2026-09-24) — awaiting confirmation before Phase 4
