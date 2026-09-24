@@ -1,0 +1,23 @@
+{
+  "train": {
+    "rows": 170236,
+    "fraud_count": 342,
+    "fraud_rate": 0.002008975774806739,
+    "time_min": 0.0,
+    "time_max": 120393.0
+  },
+  "valid": {
+    "rows": 56745,
+    "fraud_count": 57,
+    "fraud_rate": 0.0010044937879989425,
+    "time_min": 120394.0,
+    "time_max": 145234.0
+  },
+  "test": {
+    "rows": 56745,
+    "fraud_count": 74,
+    "fraud_rate": 0.0013040796545951184,
+    "time_min": 145234.0,
+    "time_max": 172792.0
+  }
+}
