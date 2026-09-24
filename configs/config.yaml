@@ -1,0 +1,21 @@
+# Central project configuration. All paths are relative to the project root.
+
+paths:
+  raw_data: data/raw/creditcard.csv
+  processed_dir: data/processed
+  models_dir: models
+  figures_dir: reports/figures
+  metrics_dir: reports/metrics
+
+seed: 42
+
+split:
+  train: 0.6
+  valid: 0.2
+  test: 0.2
+
+costs:
+  review_cost_per_alert: 5.0     # EUR per alert an analyst reviews (assumption, see docs/evaluation.md)
+  missed_fraud_cost: amount      # a missed fraud costs its transaction Amount
+
+target_recall: 0.85

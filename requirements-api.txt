@@ -1,0 +1,11 @@
+# Serving-only dependencies for the Docker image. Keep this list minimal.
+pandas
+numpy
+scikit-learn
+xgboost
+imbalanced-learn
+joblib
+pyyaml
+fastapi
+uvicorn[standard]
+pydantic>=2
