@@ -9,8 +9,8 @@
   until reproduced under this protocol.
 
 ## Data facts (fill in Phase 2/4)
-- Rows after dedupe:
-- Duplicates dropped (fraud among them):
+- Rows after dedupe: 283,726 (raw 284,807) — source: reports/metrics/data_summary.json
+- Duplicates dropped (fraud among them): 1,081 (19). Fraud after dedupe: 473 (rate 0.001667)
 - Fraud count per part — stratified:      time:
 
 ## Results log (fill as you go)
@@ -38,3 +38,11 @@
 - config.py validates on load: split sums to 1.0, target_recall in (0,1], review cost >= 0.
 - Watch: pandas 3.x is a major release (copy-on-write default, string dtype changes) —
   check pandera/imblearn behaviour in Phase 2.
+
+## Phase 2 decisions (2026-09-24)
+- pandera imported as `pandera.pandas` (0.33 API). Validation is lazy → raises SchemaErrors with all failures.
+- CSV stores Time as whole seconds (int64); load_raw casts all 30 features to float64 so the
+  schema's "all features float" holds. Class stays int64.
+- Duplicates = identical in ALL 31 columns incl. Class (same features + different label is kept).
+- Summary has two extra keys beyond the spec: rows_raw, duplicate_fraud_dropped.
+- Real CSV passed schema: no nulls, Amount >= 0, Time >= 0, Class in {0,1}.

@@ -1,0 +1,8 @@
+{
+  "rows_raw": 284807,
+  "rows": 283726,
+  "fraud_count": 473,
+  "fraud_rate": 0.001667101358352777,
+  "duplicates_dropped": 1081,
+  "duplicate_fraud_dropped": 19
+}

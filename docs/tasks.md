@@ -1,7 +1,7 @@
 # Tasks & Progress
 
 - [x] Phase 1 — Repo, environment, config, context docs
-- [ ] Phase 2 — Data loading, Pandera validation, dedupe
+- [x] Phase 2 — Data loading, Pandera validation, dedupe
 - [ ] Phase 3 — EDA notebook, figures, engineered features
 - [ ] Phase 4 — Stratified + time-based splits
 - [ ] Phase 5 — Metrics module, baselines (dummy, logreg, iforest), MLflow
@@ -15,4 +15,4 @@
 - [ ] Phase 13 — Render deploy, drift check, README, resume bullets
 
 ## Current phase
-Phase 1 complete (2026-09-24) — awaiting confirmation before Phase 2
+Phase 2 complete (2026-09-24) — awaiting confirmation before Phase 3
