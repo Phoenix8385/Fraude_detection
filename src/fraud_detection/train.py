@@ -22,7 +22,7 @@ from mlflow.models import infer_signature
 from fraud_detection.config import Config, load_config
 from fraud_detection.features import MODEL_FEATURES
 from fraud_detection.metrics import compute_metrics
-from fraud_detection.models import MODEL_NAMES, build_model
+from fraud_detection.models import MODEL_NAMES, XGB_NAMES, build_model
 from fraud_detection.schema import TARGET
 
 logger = logging.getLogger(__name__)
@@ -30,15 +30,27 @@ logger = logging.getLogger(__name__)
 EXPERIMENT_NAME = "fraud-detection"
 SPLIT_NAMES: tuple[str, ...] = ("stratified", "time")
 VALIDATION_THRESHOLD = 0.5  # fixed for baseline comparison; tuned threshold comes in Phase 8
-SEEDED_MODELS = {"logreg", "iforest"}
+SEEDED_MODELS = {"logreg", "iforest", *XGB_NAMES}
 # MLflow saves sklearn models with skops, which only loads allow-listed types.
-# Only the exact types our models need are trusted: the imblearn Pipeline, our own
-# IsolationForestScorer, and sklearn's internal tree structure used by IsolationForest.
+# Only the exact types our models need are trusted (found with skops.io.get_untrusted_types).
 SKOPS_TRUSTED_TYPES = [
     "imblearn.pipeline.Pipeline",
     "fraud_detection.models.IsolationForestScorer",
-    "sklearn.tree._tree.Tree",
+    "sklearn.tree._tree.Tree",  # IsolationForest internals
+    "xgboost.sklearn.XGBClassifier",
+    "xgboost.core.Booster",
+    "imblearn.over_sampling._smote.base.SMOTE",
+    "sklearn.neighbors._kd_tree.KDTree",  # SMOTE's fitted nearest-neighbour index
+    "sklearn.metrics._dist_metrics.EuclideanDistance64",
 ]
+
+
+def train_scale_pos_weight(y_train: pd.Series) -> float:
+    """n_legit / n_fraud in the training labels (XGBoost's recommended imbalance weight)."""
+    n_fraud = int(y_train.sum())
+    if n_fraud == 0:
+        raise ValueError("training labels contain no fraud; cannot compute scale_pos_weight")
+    return (len(y_train) - n_fraud) / n_fraud
 
 
 def load_part(split_name: str, part: str, processed_dir: Path) -> pd.DataFrame:
@@ -78,7 +90,9 @@ def run_experiment(
     X_valid, y_valid = valid[MODEL_FEATURES], valid[TARGET]
 
     params = {"random_state": config.seed} if model_name in SEEDED_MODELS else {}
-    model = build_model(model_name, params)
+    # Weight computed from TRAIN labels only: valid/test class balance must not leak in.
+    scale_pos_weight = train_scale_pos_weight(y_train) if model_name == "xgb_weighted" else None
+    model = build_model(model_name, params, scale_pos_weight=scale_pos_weight)
 
     start = time.perf_counter()
     model.fit(X_train, y_train)
@@ -94,7 +108,8 @@ def run_experiment(
     )
 
     with mlflow.start_run(run_name=f"{model_name}_{split_name}") as run:
-        mlflow.set_tags({"phase": "5", "model": model_name, "split": split_name})
+        phase = "6" if model_name in XGB_NAMES else "5"
+        mlflow.set_tags({"phase": phase, "model": model_name, "split": split_name})
         mlflow.log_params(
             {
                 "model": model_name,
@@ -105,7 +120,11 @@ def run_experiment(
                 "train_fraud": int(y_train.sum()),
                 "valid_fraud": int(y_valid.sum()),
                 "review_cost": config.costs.review_cost_per_alert,
-                **{f"model__{k}": v for k, v in model.named_steps["model"].get_params().items()},
+                **{
+                    f"{step}__{k}": v
+                    for step, estimator in model.named_steps.items()
+                    for k, v in estimator.get_params().items()
+                },
             }
         )
         mlflow.log_metrics({**metrics, "fit_seconds": fit_seconds})

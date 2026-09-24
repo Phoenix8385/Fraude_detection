@@ -27,3 +27,11 @@ def test_append_experiment_row_writes_header_once(tmp_path: Path) -> None:
     back = pd.read_csv(csv)
     assert list(back["model"]) == ["dummy", "logreg"]
     assert list(back.columns) == ["model", "pr_auc"]
+
+
+def test_train_scale_pos_weight() -> None:
+    from fraud_detection.train import train_scale_pos_weight
+
+    assert train_scale_pos_weight(pd.Series([0] * 90 + [1] * 10)) == 9.0
+    with pytest.raises(ValueError, match="no fraud"):
+        train_scale_pos_weight(pd.Series([0, 0, 0]))

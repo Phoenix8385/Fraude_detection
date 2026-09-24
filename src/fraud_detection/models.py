@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline
 from numpy.typing import ArrayLike
 from sklearn.base import BaseEstimator, ClassifierMixin
@@ -17,8 +18,25 @@ from sklearn.ensemble import IsolationForest
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.validation import check_is_fitted
+from xgboost import XGBClassifier
 
-MODEL_NAMES: tuple[str, ...] = ("dummy", "logreg", "iforest")
+BASELINE_NAMES: tuple[str, ...] = ("dummy", "logreg", "iforest")
+XGB_NAMES: tuple[str, ...] = ("xgb", "xgb_weighted", "xgb_smote", "xgb_smote_10")
+MODEL_NAMES: tuple[str, ...] = BASELINE_NAMES + XGB_NAMES
+
+# Identical for every XGBoost variant so the ONLY difference between them is how the
+# class imbalance is handled. Not tuned (Phase 7).
+XGB_BASE_PARAMS: dict[str, Any] = {
+    "n_estimators": 400,
+    "max_depth": 5,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "tree_method": "hist",
+    "eval_metric": "aucpr",
+    "n_jobs": -1,
+}
+SMOTE_RATIOS: dict[str, float | str] = {"xgb_smote": "auto", "xgb_smote_10": 0.1}
 
 
 class IsolationForestScorer(ClassifierMixin, BaseEstimator):
@@ -75,12 +93,30 @@ def build_model(
 
     Args:
         name: one of MODEL_NAMES.
-        params: keyword arguments for the model step (e.g. {"random_state": 42}).
-        scale_pos_weight: class-weight ratio for XGBoost (Phase 6); not used by these models.
+        params: keyword arguments for the model step (e.g. {"random_state": 42}). For the
+            SMOTE variants, random_state also seeds SMOTE.
+        scale_pos_weight: n_legit / n_fraud of the TRAINING rows. Required for
+            "xgb_weighted", rejected for every other model.
     """
     params = dict(params or {})
-    if scale_pos_weight is not None:
+    if name == "xgb_weighted":
+        if scale_pos_weight is None:
+            raise ValueError("xgb_weighted requires scale_pos_weight (n_legit / n_fraud of train)")
+    elif scale_pos_weight is not None:
         raise ValueError(f"scale_pos_weight is not supported for model '{name}'")
+
+    if name in XGB_NAMES:
+        xgb = XGBClassifier(**{**XGB_BASE_PARAMS, **params})
+        if name == "xgb_weighted":
+            xgb.set_params(scale_pos_weight=scale_pos_weight)
+        if name in SMOTE_RATIOS:
+            # Inside the pipeline, SMOTE runs during fit() only; predict() skips it, so
+            # validation/test rows are never resampled.
+            smote = SMOTE(
+                sampling_strategy=SMOTE_RATIOS[name], random_state=params.get("random_state")
+            )
+            return Pipeline([("smote", smote), ("model", xgb)])
+        return Pipeline([("model", xgb)])
 
     if name == "dummy":
         return Pipeline([("model", DummyClassifier(strategy="most_frequent", **params))])

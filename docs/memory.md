@@ -78,8 +78,26 @@
   are NOT a fair comparison between models — rank by PR-AUC only.
 - Metric edge cases: precision/recall/f1 = 0 on zero division; PR/ROC-AUC = NaN if one class.
 
+## Phase 6 decisions (2026-09-24)
+- 4 XGBoost variants share XGB_BASE_PARAMS (n_estimators 400, max_depth 5, lr 0.05,
+  subsample 0.8, colsample_bytree 0.8, hist, aucpr); only imbalance handling differs.
+- xgb_weighted: scale_pos_weight = n_legit/n_fraud of TRAIN (strat ≈ 598, time ≈ 497).
+- SMOTE inside imblearn Pipeline → fit-time only; test proves model sees > len(train) rows
+  and predict returns len(valid). SMOTE runs on UNSCALED features, so its nearest-neighbour
+  distances are dominated by Time and Amount (large units). Not changed; noted as a caveat.
+- MLflow skops trusted types extended (XGBClassifier, Booster, SMOTE, KDTree, EuclideanDistance64).
+- compare.py reloads each logged model from MLflow and asserts PR-AUC matches experiments.csv.
+- Valid PR-AUC (strat / time): xgb 0.8899/0.7798, xgb_weighted 0.8888/0.7880,
+  xgb_smote 0.8876/0.7706, xgb_smote_10 0.8811/0.7773 — source: reports/metrics/model_comparison.md
+
 ## Open issues
 - Time-split valid has only 57 fraud; halving for valid_cal/valid_thr leaves ~28 fraud for
   threshold selection → recall >= 0.85 estimate will be noisy (1 fraud ≈ 3.5 pp recall).
 - RESOLVED 2026-09-24: Fraude_detection gitlink removed (commit 68f2930); README conflict
   markers removed and €5 review-cost assumption stated (uncommitted at time of writing).
+- Phase 6: on TIME valid, best XGB (0.7880) beats logreg (0.7806) by only 0.0074 PR-AUC;
+  plain xgb (0.7798) is below logreg. PRD criterion "final model beats LR on valid PR-AUC"
+  is currently marginal on the headline split. Differences between XGB variants
+  (≤ 0.017) are small relative to 57 validation frauds (1 fraud ≈ 1.75 pp recall).
+- Phase 6: all supervised PR curves (time split) drop sharply at recall ≈ 0.75–0.80;
+  the recall >= 0.85 target will likely cost low precision on the time split (Phase 8).
