@@ -6,7 +6,7 @@
 - [x] Phase 4 — Stratified + time-based splits
 - [x] Phase 5 — Metrics module, baselines (dummy, logreg, iforest), MLflow
 - [x] Phase 6 — XGBoost plain / weighted / SMOTE / SMOTE-0.1 comparison
-- [ ] Phase 7 — Hyperparameter tuning (PR-AUC)
+- [x] Phase 7 — Hyperparameter tuning (PR-AUC)
 - [ ] Phase 8 — Calibration + cost-based threshold
 - [ ] Phase 9 — One-shot final test evaluation
 - [ ] Phase 10 — SHAP, model artifact, Predictor
@@ -15,4 +15,4 @@
 - [ ] Phase 13 — Render deploy, drift check, README, resume bullets
 
 ## Current phase
-Phase 6 complete (2026-09-24) — winner to be recorded by human in memory.md; then confirm Phase 7
+Phase 7 complete (2026-09-24). Phase 8 in progress: threshold.py + tests done; calibrate.py waits for human choice of final model per split

@@ -24,7 +24,9 @@
   headline split and is the simplest imbalance fix (one parameter, no synthetic rows).
   SMOTE was slowest (~7.5–7.8 s vs ~4 s fit) and lowest on time. Both xgb_weighted and xgb
   go to Phase 7 tuning. Source: reports/metrics/model_comparison.md
-- Phase 7 tuned valid PR-AUC:
+- Phase 7 tuned valid PR-AUC (untuned → tuned): strat xgb_weighted 0.8888→0.8873 (−0.0015),
+  xgb 0.8899→0.8852 (−0.0047); time xgb_weighted 0.7880→0.7643 (−0.0238), xgb 0.7798→0.7807
+  (+0.0009). Tuning did not improve validation PR-AUC. Source: reports/metrics/tuning_summary.md
 - Phase 8 calibration kept? Brier before/after:
 - Phase 8 frozen threshold (strat / time):
 - PRE-REGISTRATION before Phase 9 (model, params file, calibrated, threshold, date):
@@ -96,6 +98,20 @@
 - Valid PR-AUC (strat / time): xgb 0.8899/0.7798, xgb_weighted 0.8888/0.7880,
   xgb_smote 0.8876/0.7706, xgb_smote_10 0.8811/0.7773 — source: reports/metrics/model_comparison.md
 
+## Phase 7 decisions (2026-09-24)
+- RandomizedSearchCV(n_iter=20, scoring=average_precision, random_state=42) on TRAIN only;
+  StratifiedKFold(5, shuffle) for stratified, TimeSeriesSplit(5) on Time-sorted rows for time.
+  All params prefixed "model__" (every model is a Pipeline with step "model").
+- Best params per model/split in reports/metrics/best_params_{model}_{split}.json;
+  tuned runs logged to MLflow with tags phase=7, stage=tuned; CSV model name "<model>_tuned".
+- CAVEAT: xgb_weighted scale_pos_weight computed once from full TRAIN, reused in every CV fold
+  (fold hold-out labels contribute to one count ratio). Mild; does not touch valid/test.
+- Finding: CV fold std (0.046–0.073) is far larger than any tuned-vs-untuned change.
+  Time split: TimeSeriesSplit favoured small models (200 trees, depth 3) that did worse on the
+  later validation period (drift; see Phase 4 fraud-rate shift).
+- train.py refactor: scoring/logging moved into score_and_log(); re-run of untuned
+  xgb_weighted/time reproduced Phase 6 exactly (PR-AUC 0.7880).
+
 ## Open issues
 - Time-split valid has only 57 fraud; halving for valid_cal/valid_thr leaves ~28 fraud for
   threshold selection → recall >= 0.85 estimate will be noisy (1 fraud ≈ 3.5 pp recall).
@@ -107,3 +123,5 @@
   (≤ 0.017) are small relative to 57 validation frauds (1 fraud ≈ 1.75 pp recall).
 - Phase 6: all supervised PR curves (time split) drop sharply at recall ≈ 0.75–0.80;
   the recall >= 0.85 target will likely cost low precision on the time split (Phase 8).
+- Phase 7: tuned xgb_weighted on time valid (0.7643) is BELOW logreg (0.7806). The best
+  time-split model remains UNTUNED xgb_weighted (0.7880). Final-model choice for Phase 8 pending.

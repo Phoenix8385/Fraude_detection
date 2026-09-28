@@ -1,0 +1,21 @@
+{
+  "model": "xgb",
+  "split": "time",
+  "best_params": {
+    "subsample": 1.0,
+    "n_estimators": 200,
+    "min_child_weight": 5,
+    "max_depth": 3,
+    "learning_rate": 0.05,
+    "colsample_bytree": 0.6
+  },
+  "cv": "TimeSeriesSplit",
+  "cv_folds": 5,
+  "n_iter": 20,
+  "cv_pr_auc_mean": 0.8034461216220065,
+  "cv_pr_auc_std": 0.054142020125120684,
+  "valid_pr_auc_tuned": 0.7806555809997674,
+  "valid_pr_auc_untuned": 0.7797835811238495,
+  "search_seconds": 212.7,
+  "mlflow_run_id": "9d8ea4bb0528411ab7618263d215810c"
+}

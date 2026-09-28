@@ -12,6 +12,8 @@ threshold and are not a fair cross-model comparison (thresholds are tuned in Pha
 | xgb | stratified | 0.8899 | 0.9807 | 0.8191 | 0.9506 | 3.1600 |
 | xgb_weighted | stratified | 0.8888 | 0.9758 | 0.8617 | 0.9310 | 4.4500 |
 | xgb_smote | stratified | 0.8876 | 0.9750 | 0.8830 | 0.8218 | 7.8000 |
+| xgb_weighted_tuned | stratified | 0.8873 | 0.9776 | 0.8617 | 0.9310 | 7.9000 |
+| xgb_tuned | stratified | 0.8852 | 0.9782 | 0.8298 | 0.9512 | 2.9500 |
 | xgb_smote_10 | stratified | 0.8811 | 0.9769 | 0.8511 | 0.9091 | 4.5900 |
 | logreg | stratified | 0.7882 | 0.9827 | 0.9043 | 0.0560 | 0.7400 |
 | iforest | stratified | 0.1291 | 0.9464 | 0.6809 | 0.0843 | 1.1800 |
@@ -21,11 +23,13 @@ threshold and are not a fair cross-model comparison (thresholds are tuned in Pha
 
 | model | split | pr_auc | roc_auc | recall@0.5 | precision@0.5 | fit_seconds |
 |---|---|---|---|---|---|---|
-| xgb_weighted | time | 0.7880 | 0.9809 | 0.7544 | 0.9149 | 4.0200 |
+| xgb_weighted | time | 0.7880 | 0.9809 | 0.7544 | 0.9149 | 6.2800 |
+| xgb_tuned | time | 0.7807 | 0.9817 | 0.6667 | 0.9500 | 1.0900 |
 | logreg | time | 0.7806 | 0.9759 | 0.8772 | 0.0342 | 0.6300 |
 | xgb | time | 0.7798 | 0.9832 | 0.6667 | 0.9744 | 3.6600 |
 | xgb_smote_10 | time | 0.7773 | 0.9690 | 0.7368 | 0.9130 | 3.7400 |
 | xgb_smote | time | 0.7706 | 0.9549 | 0.7193 | 0.8200 | 7.5100 |
+| xgb_weighted_tuned | time | 0.7643 | 0.9717 | 0.7544 | 0.6515 | 1.2200 |
 | iforest | time | 0.0231 | 0.9402 | 0.6842 | 0.0317 | 0.9100 |
 | dummy | time | 0.0010 | 0.5000 | 0.0000 | 0.0000 | 0.0100 |
 
