@@ -490,3 +490,42 @@ swallowed + counted (never fail a prediction). Settings only from env (api/setti
 - Synthetic-environment proof: the full suite (271 passed) also ran in a scratch copy of the
   repo containing NO models/ folder, NO data/ folder and NO mlflow.db (imports verified to
   come from the copy) -> tests need neither the real CSV nor any real model artifact.
+
+## Phase 13 decisions & results (2026-10-05) — Docker (API only)
+- Dockerfile as specified by KING, with the approved base pin FROM python:3.11.15-slim (matches
+  model_meta.json python 3.11.15; the default 3.11-slim gave 3.11.17 and a version-drift
+  UserWarning at startup). Installs ONLY requirements-api.lock (no requirements.txt, no training
+  lock, no pip install -e). Non-root user `app` (uid 1000), EXPOSE 8000, curl HEALTHCHECK.
+- Image size: first build 1.96 GB (656 MB compressed) — cause: xgboost's Linux wheel pulls the
+  UNPINNED nvidia-nccl-cu12 2.32.3 (469 MB) and ships CUDA (xgboost 228 MB). Approved fix:
+  requirements-api.txt xgboost -> xgboost-cpu (SAME version 3.2.0; same `xgboost` module; its
+  wheel METADATA = xgboost 3.2.0's Requires-Dist minus `nvidia-nccl-cu12; Linux`). Final image:
+  756 MB as reported by Docker, 173 MB compressed (172,606,289 bytes), ~552 MB unpacked rootfs.
+  The production model is Logistic Regression; xgboost is imported only for the library-version
+  check in load_artifact.
+- scripts/make_api_lock.py: one explicit RUNTIME_SUBSTITUTES entry
+  {xgboost-cpu -> training package xgboost, drop nvidia-nccl-cu12}; its pin is checked against
+  the training lock's xgboost pin as strictly as every other package (a simulated drift is
+  refused and the lock is not rewritten). requirements-api.lock: xgboost==3.2.0 ->
+  xgboost-cpu==3.2.0; the nvidia-nccl-cu12 "not pinned" note is gone (uvloop note remains).
+  Dev/training venv still uses xgboost 3.2.0 (unchanged).
+- Image == lock: pip freeze in the image has 40 packages, none outside the lock, no version
+  differences (tzdata is win32-only). In-image: xgboost imports with __version__ 3.2.0,
+  python 3.11.15, load_artifact passes with UserWarnings promoted to errors (library versions
+  identical to model_meta.json). No warnings in the container log.
+- Verified in the container: /health 200, /ready 200 (model_loaded, logreg-iso-v1.0.0),
+  /model-info 200 with key (thresholds 0.02 / 0.23, isotonic) and 401 without, /v1/predict 200
+  with key, 401 missing / wrong key, /v1/explain 5 uncalibrated log-odds contributions, /docs
+  200, HEALTHCHECK -> healthy, model.joblib md5 bf798b5c02c429051303c99c7ab75240.
+  /app = api, configs, models, src, requirements-api.lock only; no parquet / .db / project CSV
+  / mlruns / reports / tests anywhere (CSV files found only inside sklearn/numpy packages).
+- .dockerignore: excludes .venv, data, mlruns, mlartifacts, notebooks, reports, tests, docs,
+  scripts, .git, *.db, .env*, **/*.egg-info and caches. (`*.egg-info` only matched top-level;
+  fixed to `**/*.egg-info` after src/fraud_detection_system.egg-info leaked into the image.)
+- scripts/docker_smoke.sh: build -> run (API_KEY=test, unique name, random localhost port) ->
+  wait for /ready model_loaded -> POST synthetic /v1/predict with key (200 + risk_tier) and
+  without (401) -> EXIT trap removes the container. PASS (exit 0); forced failure
+  (WAIT_SECONDS=0) exits 1 and still leaves no container.
+- .gitattributes: *.sh and Dockerfile forced to LF (core.autocrlf=true would break bash).
+- Git Bash: in-container paths need MSYS_NO_PATHCONV=1 (an early check without it was invalid
+  and was re-run). The smoke script uses no volume mounts / container paths.

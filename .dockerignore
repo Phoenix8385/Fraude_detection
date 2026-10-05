@@ -1,0 +1,29 @@
+# Build context for the API image: only requirements-api.lock, src/, api/, configs/, models/
+# are needed (see Dockerfile). Everything below stays out of the image and the context.
+.venv
+data
+mlruns
+mlartifacts
+notebooks
+reports
+tests
+docs
+scripts
+.git
+.github
+*.db
+.env
+.env.*
+
+# Python / tool caches and editor files
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+.ipynb_checkpoints
+.vscode
+.idea
+*.log

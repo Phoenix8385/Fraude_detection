@@ -17,7 +17,7 @@
 ## Part B - Service (release v1.0.0)
 - [x] Phase 11 Predictor + FastAPI /v1 core
 - [x] Phase 12 Test hardening (>=85%)
-- [ ] Phase 13 Docker (API)
+- [x] Phase 13 Docker (API)
 - [ ] Phase 14 CI/CD + live Render deploy + tag v1.0.0
 
 ## Part C - Product (release v1.1.0)
@@ -27,4 +27,4 @@
 - [ ] Phase 18 Compose, final deploy, README, runbook, tag v1.1.0
 
 ## Current phase
-Phase 13 — NOT STARTED; awaiting KING approval
+Phase 14 — NOT STARTED; awaiting KING approval

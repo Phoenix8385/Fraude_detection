@@ -1,0 +1,4 @@
+# Shell scripts and the Dockerfile run inside Linux (Git Bash / Docker): keep LF endings even
+# on Windows checkouts with core.autocrlf=true, or bash fails on "\r".
+*.sh text eol=lf
+Dockerfile text eol=lf

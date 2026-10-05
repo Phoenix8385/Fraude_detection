@@ -2,7 +2,7 @@
 pandas
 numpy
 scikit-learn
-xgboost
+xgboost-cpu  # CPU-only build of the training xgboost (same version); see scripts/make_api_lock.py
 imbalanced-learn
 joblib
 pyyaml

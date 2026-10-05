@@ -10,6 +10,11 @@ is the training environment (requirements-lock.txt), so serving == training vers
   is visible but never pinned to a version that was not tested.
 The script fails if any pin disagrees with requirements-lock.txt.
 
+One explicit runtime substitution (KING-approved, Phase 13), see RUNTIME_SUBSTITUTES:
+xgboost-cpu 3.2.0 (API image) <-> xgboost 3.2.0 (training env / model_meta.json). It is the same
+version and ships the same `xgboost` module; only the CUDA/NCCL GPU parts (~700 MB on Linux) are
+absent. Its version is checked against the training lock's xgboost pin, as strictly as any other.
+
     python scripts/make_api_lock.py
 """
 
@@ -30,6 +35,35 @@ LINUX = {**default_environment(), "sys_platform": "linux", "platform_system": "L
          "os_name": "posix"}  # fmt: skip
 
 
+# API package -> the training package it stands in for. Verified from the xgboost-cpu 3.2.0
+# wheel METADATA: Requires-Dist equals xgboost 3.2.0's minus the single GPU line
+# `nvidia-nccl-cu12; platform_system == 'Linux'` (dropped below). Add entries only with approval.
+RUNTIME_SUBSTITUTES: dict[str, dict] = {
+    "xgboost-cpu": {"training_package": "xgboost", "drop_requirements": {"nvidia-nccl-cu12"}},
+}
+
+
+def _installed(name: str) -> tuple[str | None, list[str]]:
+    """(version, requirements) from the training env, honouring RUNTIME_SUBSTITUTES."""
+    sub = RUNTIME_SUBSTITUTES.get(canonicalize_name(name))
+    source = sub["training_package"] if sub else name
+    try:
+        version = md.version(source)
+    except md.PackageNotFoundError:
+        return None, []
+    requires = md.requires(source) or []
+    if sub:
+        drop = sub["drop_requirements"]
+        requires = [r for r in requires if canonicalize_name(Requirement(r).name) not in drop]
+    return version, requires
+
+
+def training_name(name: str) -> str:
+    """Name to look up in requirements-lock.txt (the substituted training package, if any)."""
+    sub = RUNTIME_SUBSTITUTES.get(canonicalize_name(name))
+    return canonicalize_name(sub["training_package"]) if sub else canonicalize_name(name)
+
+
 def _applies(req: Requirement, env: dict[str, str], extras: set[str]) -> bool:
     if req.marker is None:
         return True
@@ -43,10 +77,7 @@ def closure(roots: list[Requirement]) -> dict[str, dict]:
     while queue:
         req, platforms = queue.pop()
         name = canonicalize_name(req.name)
-        try:
-            version = md.version(req.name)
-        except md.PackageNotFoundError:
-            version = None
+        version, requires = _installed(req.name)
         entry = found.setdefault(name, {"version": version, "platforms": set(), "extras": set(),
                                         "display": req.name})  # fmt: skip
         new_platforms = platforms - entry["platforms"]
@@ -57,7 +88,7 @@ def closure(roots: list[Requirement]) -> dict[str, dict]:
         entry["extras"] |= set(req.extras)
         if version is None:
             continue
-        for raw in md.requires(req.name) or []:
+        for raw in requires:
             child = Requirement(raw)
             child_platforms = {
                 p for p, env in (("win", WINDOWS), ("linux", LINUX))
@@ -91,9 +122,10 @@ def main() -> None:
             unpinned.append(f"# {e['display']}: required on {where} only; not installed in "
                             "the Windows build env, so NOT pinned")  # fmt: skip
             continue
-        if training.get(name) != e["version"]:
+        expected = training.get(training_name(name))  # same strict check for every package
+        if expected != e["version"]:
             raise SystemExit(f"{name}=={e['version']} differs from requirements-lock.txt "
-                             f"({training.get(name)})")  # fmt: skip
+                             f"({training_name(name)}=={expected})")  # fmt: skip
         marker = ""
         if e["platforms"] == {"win"}:
             marker = ' ; sys_platform == "win32"'
