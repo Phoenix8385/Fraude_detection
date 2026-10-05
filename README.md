@@ -1,9 +1,24 @@
 # Fraud & Anomaly Detection System
 
+[![ci](https://github.com/Phoenix8385/Fraude_detection/actions/workflows/ci.yml/badge.svg)](https://github.com/Phoenix8385/Fraude_detection/actions/workflows/ci.yml)
+
 End-to-end credit-card fraud detection pipeline (work in progress).
 
 > Sections are filled in as each phase produces real results;
 > every number here will come from `reports/metrics/`.
+
+## Live demo
+
+> **Not deployed yet.** The URLs below are placeholders until the Render service is live and
+> its `/ready` and `/docs` endpoints have been verified.
+
+- Live API: `<RENDER_URL>`
+- Swagger / OpenAPI docs: `<RENDER_URL>/docs`
+- Scoring endpoints (`/v1/*`, `/model-info`) require an `X-API-Key` header. The key is a
+  deployment secret and is never published here.
+
+**Cold start:** the service runs on Render's free plan, which spins down after about 15 minutes
+of inactivity. The first request after an idle period can take about a minute while it wakes up.
 
 ## Problem
 
@@ -60,6 +75,12 @@ of fraud, and `V1`–`V28` are anonymised PCA components without business meanin
 ## Run locally / Docker
 
 ## Testing & CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and every pull request:
+`test` (ruff + pytest with a coverage gate of 85%) -> `docker` (`scripts/docker_smoke.sh`: build
+the image, start it, call `/ready` and an authenticated `/v1/predict`) -> `deploy` (push to `main`
+only: trigger the Render deploy hook, then poll `/ready`). Deploy secrets live in GitHub Actions
+secrets (`RENDER_DEPLOY_HOOK`, `SERVICE_URL`), never in the repository.
 
 ## Limitations
 
