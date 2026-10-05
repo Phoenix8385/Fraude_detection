@@ -8,6 +8,7 @@ import pytest
 from sklearn.linear_model import LogisticRegression
 
 from fraud_detection.calibrate import (
+    CALIBRATION_API,
     fit_calibrator,
     grid_diagnostics,
     half_summary,
@@ -98,16 +99,31 @@ def test_reliability_plot_writes_file(valid_df: pd.DataFrame, tmp_path: Path) ->
     assert out.exists() and out.stat().st_size > 0
 
 
+def test_select_calibration_explains_how_rule_was_applied() -> None:
+    within = select_calibration({"none": 0.0100, "sigmoid": 0.0099, "isotonic": 0.0097}, 0.05)
+    assert "within 5%" in within["how_applied"] and within["lowest_brier"] == "isotonic"
+    beats = select_calibration({"none": 0.0100, "sigmoid": 0.0050, "isotonic": 0.0097}, 0.05)
+    assert "more than 5%" in beats["how_applied"]
+    assert select_calibration({"none": 0.001, "sigmoid": 0.002}, 0.05)["how_applied"] == (
+        "'none' has the lowest Brier"
+    )
+
+
+def test_calibration_api_path_is_recorded() -> None:
+    assert "FrozenEstimator" in CALIBRATION_API or "prefit" in CALIBRATION_API
+    assert "sklearn" in CALIBRATION_API
+
+
 def test_summary_line_is_console_safe_and_reports_missing_t_block() -> None:
     result = {
-        "calibration": {"selected": "none", "brier_valid_thr": {"none": 0.001}},
-        "frozen": {
+        "calibration": {"selected": "none", "candidates_valid_thr": {"none": {"brier": 0.001}}},
+        "policy": {
             "split": "time", "model": "logreg", "warnings": [],
-            "t_review": {"threshold": 0.01, "recall": 0.8, "precision": 0.5,
-                         "expected_cost": 10.0, "met_target": False},
-            "t_block": {"exists": False, "threshold": None},
+            "t_review_detail": {"threshold": 0.01, "recall": 0.8, "precision": 0.5,
+                                "expected_cost": 10.0, "fallback": True},
+            "t_block_detail": {"exists": False, "threshold": None},
         },
     }  # fmt: skip
     line = summary_line(result)
     line.encode("cp1252")  # the CLI prints this on a Windows console
-    assert "t_block DOES NOT EXIST" in line and "met_target False" in line
+    assert "t_block DOES NOT EXIST" in line and "fallback True" in line

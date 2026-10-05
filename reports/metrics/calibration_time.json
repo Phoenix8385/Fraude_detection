@@ -2,6 +2,9 @@
   "split": "time",
   "model": "logreg",
   "mlflow_run_id": "5561385ba3144bf9ae85f73d7e56d43c",
+  "api": "sklearn 1.9.1: CalibratedClassifierCV(FrozenEstimator(champion), method=...) \u2014 ensemble='auto' -> one calibrator on all valid_cal predictions",
+  "fitted_on": "valid_cal",
+  "scored_on": "valid_thr",
   "halves": {
     "valid_cal": {
       "rows": 28372,
@@ -16,14 +19,29 @@
       "time_max": 145234.0
     }
   },
-  "brier_valid_thr": {
-    "none": 0.0008549215062128336,
-    "sigmoid": 0.00028979134834472553,
-    "isotonic": 0.00026591904403598334
+  "candidates_valid_thr": {
+    "none": {
+      "brier": 0.0008549215062128336,
+      "log_loss": 0.004161243717501026,
+      "ece": 0.0008241533982518414,
+      "pr_auc": 0.8374796741458173
+    },
+    "sigmoid": {
+      "brier": 0.00028979134834472553,
+      "log_loss": 0.002069752149551955,
+      "ece": 0.00026364398202034854,
+      "pr_auc": 0.8374796741458173
+    },
+    "isotonic": {
+      "brier": 0.00026591904403598334,
+      "log_loss": 0.0020045117753404985,
+      "ece": 0.00018208591722372217,
+      "pr_auc": 0.8293754086985871
+    }
   },
   "selected": "isotonic",
   "lowest_brier": "isotonic",
   "relative_improvement_vs_none": 0.688955018556075,
   "rule": "lowest Brier on valid_thr; within 5% of 'none' -> 'none'",
-  "fit": "CalibratedClassifierCV(FrozenEstimator(model), method) on valid_cal"
+  "how_applied": "'isotonic' is lowest and 68.9% below 'none' (more than 5%)"
 }

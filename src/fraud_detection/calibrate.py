@@ -1,19 +1,20 @@
 """Phase 8 — calibration and the two-threshold policy, on VALIDATION only.
 
-For each split, the Phase 7 champion (reports/metrics/champion_{split}.json) is reloaded
-from MLflow — no retraining, no re-selection. Then (docs/evaluation.md):
+For each split, the FROZEN Phase 7 champion (reports/metrics/champion_{split}.json) is
+reloaded from MLflow — no retraining, no re-selection. Then (docs/evaluation.md):
 
 1. VALID is halved: time split -> chronological halves (earlier = valid_cal, later =
-   valid_thr); stratified split -> stratified halves. Warn if a half has < 30 frauds.
+   valid_thr); stratified split -> stratified halves. Row indices are saved. Warn if a
+   half has < 30 frauds.
 2. Calibration candidates none / sigmoid / isotonic. Calibrators are fitted on valid_cal
-   with FrozenEstimator (the model itself is never refitted). Pick the lowest Brier on
-   valid_thr; if it is within 5% of 'none', keep 'none'.
-3. On valid_thr, with the selected probabilities and the 0.01-0.95 grid:
-   t_review = min expected cost s.t. recall >= 0.85 (if no threshold qualifies: the
-   max-recall threshold, documented as met_target=False);
-   t_block = smallest threshold with precision >= 0.90 and >= 5 TP, else it does not exist.
-4. Threshold stability (200 bootstrap resamples, median + IQR) is reported, never used to
-   change the frozen thresholds.
+   only; the model itself is never refitted. Every candidate is scored on valid_thr only
+   (Brier, log-loss, ECE 10 bins, PR-AUC). Selection: lowest Brier; if the best calibrated
+   candidate is within 5% of 'none', keep 'none'.
+3. On valid_thr, with the selected probabilities (policy.py):
+   t_review = min expected cost s.t. recall >= 0.85 (fallback: highest-recall threshold);
+   t_block = smallest threshold with precision >= 0.90 and >= 5 TP, else None.
+4. Threshold stability (200 stratified bootstrap resamples, median + IQR) and cost
+   sensitivity (review cost 2 / 5 / 20) are reported; they never change the frozen thresholds.
 
 The test split is never read.
 
@@ -38,25 +39,36 @@ import matplotlib.pyplot as plt  # noqa: E402
 import mlflow.sklearn  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
+import sklearn  # noqa: E402
 from sklearn.calibration import CalibratedClassifierCV, calibration_curve  # noqa: E402
-from sklearn.frozen import FrozenEstimator  # noqa: E402
-from sklearn.metrics import brier_score_loss  # noqa: E402
 from sklearn.model_selection import train_test_split  # noqa: E402
 
 from fraud_detection.config import Config, load_config  # noqa: E402
 from fraud_detection.features import MODEL_FEATURES  # noqa: E402
-from fraud_detection.policy import tier_summary  # noqa: E402
+from fraud_detection.metrics import calibration_metrics  # noqa: E402
+from fraud_detection.policy import choose_t_block, choose_t_review, tier_table  # noqa: E402
 from fraud_detection.schema import TARGET  # noqa: E402
 from fraud_detection.threshold import (  # noqa: E402
     DEFAULT_GRID,
-    choose_block_threshold,
-    choose_threshold,
     cost_sensitivity,
     plot_cost_curve,
     threshold_stability,
     threshold_table,
 )
 from fraud_detection.train import SPLIT_NAMES, load_part, setup_mlflow  # noqa: E402
+
+try:  # sklearn >= 1.6
+    from sklearn.frozen import FrozenEstimator  # noqa: E402
+
+    CALIBRATION_API = (
+        f"sklearn {sklearn.__version__}: CalibratedClassifierCV(FrozenEstimator(champion), "
+        "method=...) — ensemble='auto' -> one calibrator on all valid_cal predictions"
+    )
+except ImportError:  # pragma: no cover - older sklearn
+    FrozenEstimator = None
+    CALIBRATION_API = (
+        f"sklearn {sklearn.__version__}: CalibratedClassifierCV(champion, method=..., cv='prefit')"
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -101,35 +113,46 @@ def half_summary(
 def fit_calibrator(model: Any, X_cal: pd.DataFrame, y_cal: pd.Series, method: str) -> Any:
     """Fit a sigmoid or isotonic calibrator on valid_cal without refitting the model.
 
-    With a FrozenEstimator, sklearn (>= 1.6, ensemble="auto") fits ONE calibrator on the
-    model's predictions for all of valid_cal; the model's fit() is a no-op.
+    sklearn >= 1.6: FrozenEstimator (ensemble="auto" -> ONE calibrator fitted on the model's
+    predictions for all of valid_cal; the model's fit() is a no-op). Older: cv="prefit".
     """
-    return CalibratedClassifierCV(FrozenEstimator(model), method=method).fit(X_cal, y_cal)
+    if FrozenEstimator is not None:
+        calibrator = CalibratedClassifierCV(FrozenEstimator(model), method=method)
+    else:  # pragma: no cover - older sklearn
+        calibrator = CalibratedClassifierCV(model, method=method, cv="prefit")
+    return calibrator.fit(X_cal, y_cal)
 
 
 def select_calibration(briers: dict[str, float], tolerance: float) -> dict[str, Any]:
     """Lowest Brier wins, unless it improves on 'none' by no more than `tolerance` (relative).
 
     "Within 5% of 'none' -> 'none'": a calibrator is kept only if its Brier is MORE than
-    5% lower than the uncalibrated Brier.
+    5% lower than the uncalibrated Brier. Exactly 5% counts as "within".
     """
     best = min(briers, key=lambda m: briers[m])
     improvement = (briers["none"] - briers[best]) / briers["none"] if briers["none"] else 0.0
-    # exactly `tolerance` counts as "within" (isclose guards float noise such as 0.05000004)
+    # isclose guards float noise such as 0.05000000000000004 at the boundary
     beats = improvement > tolerance and not math.isclose(improvement, tolerance)
     selected = best if best != "none" and beats else "none"
+    if best == "none":
+        how = "'none' has the lowest Brier"
+    elif selected == "none":
+        how = f"'{best}' is lowest but only {improvement:.1%} below 'none' (within {tolerance:.0%})"
+    else:
+        how = f"'{best}' is lowest and {improvement:.1%} below 'none' (more than {tolerance:.0%})"
     return {
         "selected": selected,
         "lowest_brier": best,
         "relative_improvement_vs_none": float(improvement),
         "rule": f"lowest Brier on valid_thr; within {tolerance:.0%} of 'none' -> 'none'",
+        "how_applied": how,
     }
 
 
 def plot_reliability(
     y: np.ndarray, probas: dict[str, np.ndarray], briers: dict[str, float], title: str, path: Path
 ) -> None:
-    """Reliability curves of every calibration candidate on valid_thr."""
+    """Reliability curves of every calibration candidate on ONE figure (valid_thr, 10 bins)."""
     fig, ax = plt.subplots(figsize=(7, 6))
     ax.plot([0, 1], [0, 1], "k--", lw=1, label="perfectly calibrated")
     for name, proba in probas.items():
@@ -160,20 +183,14 @@ def grid_diagnostics(table: pd.DataFrame, y: pd.Series, proba: np.ndarray) -> di
     }
 
 
-def _row(chosen: dict[str, Any]) -> dict[str, Any]:
-    keys = ("threshold", "recall", "precision", "f1", "alerts_per_1000", "tp", "fp", "fn",
-            "fraud_amount_caught_pct", "expected_cost")  # fmt: skip
-    return {k: chosen[k] for k in keys if k in chosen}
-
-
 def run_phase8(split: str, config: Config) -> dict[str, Any]:
-    """Calibrate the Phase 7 champion and freeze t_review / t_block for one split."""
+    """Calibrate the frozen Phase 7 champion and freeze t_review / t_block for one split."""
     metrics_dir, figures_dir = config.paths.metrics_dir, config.paths.figures_dir
     champion = json.loads((metrics_dir / f"champion_{split}.json").read_text(encoding="utf-8"))
     model_key = champion["decision"]["champion"]
     run_id = champion["models"][model_key]["mlflow_run_id"]
     model = mlflow.sklearn.load_model(f"runs:/{run_id}/model")
-    logger.info("%s: champion %s (run %s)", split, model_key, run_id)
+    logger.info("%s: frozen champion %s (run %s)", split, model_key, run_id)
 
     valid = load_part(split, "valid", config.paths.processed_dir)
     cal, thr = split_validation(valid, split, config.seed)
@@ -186,36 +203,38 @@ def run_phase8(split: str, config: Config) -> dict[str, Any]:
         encoding="utf-8",
     )
 
-    X_cal, y_cal = cal[MODEL_FEATURES], cal[TARGET]
+    # Calibrators see valid_cal only; every candidate is scored on valid_thr only.
     X_thr, y_thr = thr[MODEL_FEATURES], thr[TARGET]
     fitted: dict[str, Any] = {"none": model}
     for method in ("sigmoid", "isotonic"):
-        fitted[method] = fit_calibrator(model, X_cal, y_cal, method)
+        fitted[method] = fit_calibrator(model, cal[MODEL_FEATURES], cal[TARGET], method)
     probas = {name: m.predict_proba(X_thr)[:, 1] for name, m in fitted.items()}
-    briers = {name: float(brier_score_loss(y_thr, p)) for name, p in probas.items()}
+    scores = {name: calibration_metrics(y_thr, p, n_bins=10) for name, p in probas.items()}
+    briers = {name: s["brier"] for name, s in scores.items()}
     selection = select_calibration(briers, config.calibration.none_tolerance)
     method = selection["selected"]
     proba = probas[method]
-    logger.info("%s: Brier %s -> selected %s", split, briers, method)
+    logger.info("%s: %s -> calibration %s", split, selection["how_applied"], method)
 
     review_cost = config.costs.review_cost_per_alert
     amounts = thr["Amount"]
-    table = threshold_table(y_thr, proba, amounts, review_cost)
-    t_review = choose_threshold(table, config.target_recall)
-    t_block = choose_block_threshold(
-        table, config.policy.block_precision, config.policy.block_min_tp
+    t_review = choose_t_review(y_thr, proba, amounts, review_cost, config.target_recall)
+    t_block = choose_t_block(
+        y_thr, proba, config.policy.block_precision, config.policy.block_min_tp
     )
-    if t_block["exists"] and t_block["threshold"] < t_review["threshold"]:
-        warnings.append("t_block < t_review: the MEDIUM/REVIEW tier is empty")
-    if not t_review["met_target"]:
+    if t_review["fallback"]:
         warnings.append(
-            f"no grid threshold reaches recall {config.target_recall} on valid_thr; "
-            "t_review = max-recall threshold (evaluation.md threshold rule)"
+            f"FALLBACK: no grid threshold reaches recall {config.target_recall} on valid_thr; "
+            "t_review = highest-recall threshold (cheapest among ties)"
         )
     if not t_block["exists"]:
-        warnings.append("t_block does not exist: no HIGH/HOLD tier")
+        warnings.append("t_block does not exist (None): no HIGH/HOLD tier")
+    elif t_block["threshold"] < t_review["threshold"]:
+        warnings.append("t_block < t_review: the MEDIUM/REVIEW tier is empty")
 
-    t_block_value = t_block["threshold"] if t_block["exists"] else None
+    table = threshold_table(y_thr, proba, amounts, review_cost)
+    tiers = tier_table(y_thr, proba, t_review["threshold"], t_block["threshold"])
+    sensitivity = cost_sensitivity(y_thr, proba, amounts, config.target_recall)
     stability = threshold_stability(
         y_thr, proba, amounts, review_cost, config.target_recall,
         config.policy.block_precision, config.policy.block_min_tp,
@@ -223,7 +242,8 @@ def run_phase8(split: str, config: Config) -> dict[str, Any]:
     )  # fmt: skip
 
     table.to_csv(metrics_dir / f"threshold_table_{split}.csv", index=False, float_format="%.6f")
-    cost_sensitivity(y_thr, proba, amounts, config.target_recall).to_csv(
+    tiers.to_csv(metrics_dir / f"tier_table_{split}.csv", index=False, float_format="%.6f")
+    sensitivity.to_csv(
         metrics_dir / f"cost_sensitivity_{split}.csv", index=False, float_format="%.4f"
     )
     plot_reliability(
@@ -232,7 +252,7 @@ def run_phase8(split: str, config: Config) -> dict[str, Any]:
         figures_dir / f"reliability_{split}.png",
     )  # fmt: skip
     plot_cost_curve(
-        table, t_review,
+        table, {**t_review, "target_recall": config.target_recall},
         f"Cost vs threshold — {split}, {model_key}, calibration={method} (valid_thr)",
         figures_dir / f"cost_vs_threshold_{split}.png",
     )  # fmt: skip
@@ -241,15 +261,17 @@ def run_phase8(split: str, config: Config) -> dict[str, Any]:
         "split": split,
         "model": model_key,
         "mlflow_run_id": run_id,
+        "api": CALIBRATION_API,
+        "fitted_on": "valid_cal",
+        "scored_on": "valid_thr",
         "halves": halves,
-        "brier_valid_thr": briers,
+        "candidates_valid_thr": scores,
         **selection,
-        "fit": "CalibratedClassifierCV(FrozenEstimator(model), method) on valid_cal",
     }
     (metrics_dir / f"calibration_{split}.json").write_text(
         json.dumps(calibration, indent=2) + "\n", encoding="utf-8"
     )
-    frozen = {
+    policy = {
         "split": split,
         "model": model_key,
         "mlflow_run_id": run_id,
@@ -258,49 +280,48 @@ def run_phase8(split: str, config: Config) -> dict[str, Any]:
         "valid_thr_rows": halves["valid_thr"]["rows"],
         "valid_thr_fraud": halves["valid_thr"]["fraud"],
         "review_cost": review_cost,
-        "t_review": {
-            **_row(t_review),
-            "met_target": bool(t_review["met_target"]),
-            "target_recall": config.target_recall,
-            "rule": t_review["rule"],
-        },
-        "t_block": {
-            "exists": t_block["exists"],
-            **(_row(t_block) if t_block["exists"] else {"threshold": None}),
-            "rule": t_block["rule"],
-        },
-        "tiers_valid_thr": tier_summary(y_thr, proba, t_review["threshold"], t_block_value),
+        "t_review": t_review["threshold"],
+        "t_block": t_block["threshold"],
+        # operating point at t_review
+        "recall": t_review["recall"],
+        "precision": t_review["precision"],
+        "alerts_per_1000": t_review["alerts_per_1000"],
+        "expected_cost": t_review["expected_cost"],
+        "t_review_detail": t_review,
+        "t_block_detail": t_block,
+        "tiers_valid_thr": tiers.to_dict(orient="records"),
+        "stability": stability,
+        "cost_sensitivity": sensitivity.to_dict(orient="records"),
         "grid_diagnostics": grid_diagnostics(table, y_thr, proba),
-        "threshold_stability": stability,
         "warnings": warnings,
     }
-    (metrics_dir / f"frozen_threshold_{split}.json").write_text(
-        json.dumps(frozen, indent=2) + "\n", encoding="utf-8"
+    (metrics_dir / f"policy_{split}.json").write_text(
+        json.dumps(policy, indent=2) + "\n", encoding="utf-8"
     )
     model_path = config.paths.models_dir / f"final_model_{split}.joblib"
     model_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(fitted[method], model_path)
-    logger.info("%s: saved %s and frozen thresholds", split, model_path.name)
-    return {"calibration": calibration, "frozen": frozen}
+    logger.info("%s: saved policy_%s.json and %s", split, split, model_path.name)
+    return {"calibration": calibration, "policy": policy}
 
 
 def summary_line(result: dict[str, Any]) -> str:
     """One readable block per split for the CLI (ASCII only, Windows console safe)."""
-    c, f = result["calibration"], result["frozen"]
-    tr, tb = f["t_review"], f["t_block"]
+    c, p = result["calibration"], result["policy"]
+    tr, tb = p["t_review_detail"], p["t_block_detail"]
     block = (
         f"t_block {tb['threshold']:.2f} (precision {tb['precision']:.3f}, tp {tb['tp']:.0f})"
         if tb["exists"]
-        else "t_block DOES NOT EXIST"
+        else "t_block DOES NOT EXIST (None)"
     )
-    briers = ", ".join(f"{k} {v:.6f}" for k, v in c["brier_valid_thr"].items())
+    briers = ", ".join(f"{k} {v['brier']:.6f}" for k, v in c["candidates_valid_thr"].items())
     return (
-        f"{f['split']}: model {f['model']}, calibration {c['selected']} (Brier {briers})\n"
+        f"{p['split']}: model {p['model']}, calibration {c['selected']} (Brier {briers})\n"
         f"  t_review {tr['threshold']:.2f}: recall {tr['recall']:.3f}, "
         f"precision {tr['precision']:.3f}, cost EUR {tr['expected_cost']:.2f}, "
-        f"met_target {tr['met_target']}\n"
+        f"fallback {tr['fallback']}\n"
         f"  {block}\n"
-        f"  warnings: {f['warnings'] or 'none'}"
+        f"  warnings: {p['warnings'] or 'none'}"
     )
 
 
@@ -313,6 +334,7 @@ def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     config = load_config()
     setup_mlflow(config)
+    logger.info("Calibration API: %s", CALIBRATION_API)
     for split in args.splits:
         print(summary_line(run_phase8(split, config)))
 

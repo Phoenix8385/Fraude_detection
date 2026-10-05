@@ -35,6 +35,15 @@ table at €2 / €5 / €20 will be added once the threshold is selected.
 
 ## Calibration
 
+> **Small-data warning.** Calibration and both decision thresholds are estimated on halves
+> of the validation part that contain very few frauds: on the time split (headline),
+> `valid_cal` has 24 frauds and `valid_thr` 33; on the stratified split, 47 and 47
+> (`reports/metrics/calibration_{split}.json`). With so few positives, one fraud more or
+> less moves recall by about 3 percentage points on the time split, and the bootstrap
+> interquartile range of `t_review` on the time split is 0.02–0.34
+> (`reports/metrics/policy_time.json`). Treat the calibration choice and the thresholds as
+> rough estimates, not precise operating points.
+
 ## Explainability
 
 ## API

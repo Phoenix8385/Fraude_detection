@@ -102,3 +102,31 @@ def test_inputs_not_mutated() -> None:
     before = proba.copy()
     compute_metrics(Y, proba, 0.5, amounts=AMOUNTS, review_cost=5)
     np.testing.assert_array_equal(proba, before)
+
+
+# ---------------------------------------------------------------------------
+# Calibration metrics (Phase 8)
+# ---------------------------------------------------------------------------
+
+
+def test_ece_hand_computed() -> None:
+    from fraud_detection.metrics import expected_calibration_error
+
+    # bins (10 equal-width): 0.1,0.1 -> bin 1 (rate 0, mean p 0.1, gap 0.1, weight 2/4)
+    #                        0.7 -> bin 7 (rate 1, gap 0.3, weight 1/4)
+    #                        0.9 -> bin 9 (rate 1, gap 0.1, weight 1/4)
+    # ECE = 0.5 * 0.1 + 0.25 * 0.3 + 0.25 * 0.1 = 0.15
+    assert expected_calibration_error([0, 0, 1, 1], [0.1, 0.1, 0.7, 0.9]) == pytest.approx(0.15)
+    assert expected_calibration_error([1, 0], [1.0, 0.0]) == 0.0  # p = 1.0 lands in last bin
+    assert expected_calibration_error([], []) == 0.0
+
+
+def test_calibration_metrics_keys_and_values() -> None:
+    from fraud_detection.metrics import calibration_metrics
+
+    m = calibration_metrics([0, 0, 1, 1], [0.1, 0.1, 0.7, 0.9])
+    assert set(m) == {"brier", "log_loss", "ece", "pr_auc"}
+    assert m["brier"] == pytest.approx((0.01 + 0.01 + 0.09 + 0.01) / 4)
+    assert m["pr_auc"] == 1.0 and m["ece"] == pytest.approx(0.15)
+    # p of exactly 0 or 1 (isotonic can output these) must not give an infinite log-loss
+    assert np.isfinite(calibration_metrics([0, 1], [1.0, 0.0])["log_loss"])

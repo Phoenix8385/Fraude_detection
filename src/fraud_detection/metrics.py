@@ -1,4 +1,4 @@
-"""The one trusted metrics function. Every reported number goes through compute_metrics.
+"""The trusted metrics functions. Every reported number goes through this module.
 
 Pure: no I/O, no global state. See docs/evaluation.md for definitions.
 """
@@ -71,4 +71,42 @@ def compute_metrics(
         "fraud_amount_caught_pct": 100 * _safe_div(amt[alert & fraud].sum(), amt[fraud].sum()),
         "expected_cost": float(amt[~alert & fraud].sum() + review_cost * (tp + fp)),
         "threshold": float(threshold),
+    }
+
+
+def expected_calibration_error(y_true: ArrayLike, y_proba: ArrayLike, n_bins: int = 10) -> float:
+    """ECE with equal-width bins on [0, 1]: sum over bins of (n_bin / n) * |fraud rate - mean p|.
+
+    p = 1.0 falls in the last bin. Empty bins contribute nothing.
+    """
+    y = np.asarray(y_true).astype(float)
+    p = np.asarray(y_proba, dtype=float)
+    if len(y) == 0:
+        return 0.0
+    bins = np.minimum((p * n_bins).astype(int), n_bins - 1)
+    ece = 0.0
+    for b in np.unique(bins):
+        mask = bins == b
+        ece += mask.mean() * abs(y[mask].mean() - p[mask].mean())
+    return float(ece)
+
+
+def calibration_metrics(
+    y_true: ArrayLike, y_proba: ArrayLike, n_bins: int = 10
+) -> dict[str, float]:
+    """Probability quality: Brier, log-loss, ECE (n_bins equal-width) and PR-AUC.
+
+    Lower is better for brier / log_loss / ece; pr_auc is a ranking metric (calibration that
+    preserves order leaves it unchanged; isotonic ties can lower it slightly).
+    """
+    from sklearn.metrics import brier_score_loss, log_loss
+
+    y = np.asarray(y_true).astype(int)
+    p = np.asarray(y_proba, dtype=float)
+    both_classes = 0 < y.sum() < len(y)
+    return {
+        "brier": float(brier_score_loss(y, p)),
+        "log_loss": float(log_loss(y, np.clip(p, 1e-15, 1 - 1e-15), labels=[0, 1])),
+        "ece": expected_calibration_error(y, p, n_bins),
+        "pr_auc": float(average_precision_score(y, p)) if both_classes else float("nan"),
     }

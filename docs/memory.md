@@ -31,7 +31,7 @@
   0.000855 -> 0.000266; stratified (xgb_u) NONE (isotonic 0.000294 only 3.8% below 0.000306)
   — source: reports/metrics/calibration_{split}.json
 - Phase 8 frozen thresholds (strat / time): t_review 0.06 / 0.02 (time: recall target NOT met),
-  t_block 0.22 / 0.23 — source: reports/metrics/frozen_threshold_{split}.json
+  t_block 0.22 / 0.23 — source: reports/metrics/policy_{split}.json
 - PRE-REGISTRATION before Phase 9 (model, params file, calibrated, threshold, date):
 - Phase 9 final test metrics:
 - Phase 11 p95 latency:
@@ -218,63 +218,76 @@ champion_summary.md, best_params_{xgb_u,logreg}_{split}.json (all VALIDATION; te
   session; cause unknown — not Phase 7 code). Phase 7 code never opens them
   (tests/test_no_test_leakage.py).
 
-## Phase 8 (v2) decisions & results (2026-10-05) — calibration + two-threshold policy
-Source for every number below: reports/metrics/calibration_{split}.json,
-frozen_threshold_{split}.json, threshold_table_{split}.csv, cost_sensitivity_{split}.csv
-(all valid_thr / valid_cal; test not used). Models = Phase 7 champions, reloaded from MLflow
-(time: logreg run 5561385b; stratified: xgb_u run 15a37803). No retuning, no re-selection.
+## Phase 8 decisions & results (2026-10-05) — calibration + two-threshold policy
+Source for every number below: reports/metrics/calibration_{split}.json, policy_{split}.json,
+tier_table_{split}.csv, threshold_table_{split}.csv, cost_sensitivity_{split}.csv
+(valid_cal / valid_thr only; test never read). Models = FROZEN Phase 7 champions reloaded from
+MLflow (time: logreg run 5561385b; stratified: xgb_u run 15a37803). No retuning, no re-selection.
 - Halves: time = chronological (earlier valid_cal / later valid_thr); stratified = stratified
-  50/50, seed 42. Time halves: valid_cal 28,372 rows / 24 fraud (WARNING: < 30),
-  valid_thr 28,373 / 33. Stratified: 47 / 47 fraud.
-- Calibrators: CalibratedClassifierCV(FrozenEstimator(model), method) fitted on valid_cal.
-  sklearn 1.9 ensemble="auto" -> ONE calibrator on all valid_cal predictions (replaces the old
-  v1 code's 5-fold averaged isotonic ensemble). Model weights never refitted (tested).
-- Selection rule applied = evaluation.md v2 addendum: lowest Brier on valid_thr; if within 5%
-  of 'none' -> 'none'. Exactly 5% counts as "within" (float-safe comparison).
-  DOC CONFLICT: evaluation.md also still says "Isotonic on valid_cal. Keep only if Brier
-  improves". Under that older rule the STRATIFIED result would be isotonic (3.8% better);
-  the time result is the same under both rules. Needs KING confirmation.
-- t_block rule includes ">= 5 true positives" (evaluation.md addendum).
-- Threshold handling when recall 0.85 is unreachable: evaluation.md threshold rule ("if none
-  qualifies, choose max-recall threshold and document") — no grid change, no relaxing.
+  50/50, seed 42; indices in valid_subsplit_indices_{split}.json. Time: valid_cal 28,372 rows /
+  **24 fraud (WARNING < 30)**, valid_thr 28,373 / 33. Stratified: 47 / 47 fraud.
+- API path: sklearn 1.9.1 -> CalibratedClassifierCV(FrozenEstimator(champion), method=...),
+  ensemble="auto" -> ONE calibrator fitted on all valid_cal predictions. cv="prefit" branch
+  exists only for sklearn < 1.6 (not used). Model weights never refitted (tested).
+- Calibrators fitted on valid_cal ONLY; candidates scored on valid_thr ONLY with Brier,
+  log-loss, ECE (10 equal-width bins), PR-AUC (metrics.calibration_metrics).
+- Selection rule (KING Phase 8 spec = evaluation.md v2 addendum): lowest Brier; if the best
+  calibrated candidate is within 5% of 'none' -> 'none'. Exactly 5% counts as "within"
+  (float-safe). The older "isotonic, keep if Brier improves" line in evaluation.md is
+  superseded by this rule (KING spec, 2026-10-05).
+- t_review = min expected cost s.t. recall >= 0.85 on the 0.01-0.95 grid; if unreachable, the
+  highest-recall threshold (cheapest among ties) with fallback=true. t_block = smallest
+  threshold with precision >= 0.90 AND >= 5 TP, else None. Equality meets a threshold.
+- Stability (200 stratified bootstrap resamples, seed 42) and cost sensitivity are REPORT ONLY.
 
-### TIME split (headline) — tuned logreg
-- Brier valid_thr: none 0.000855, sigmoid 0.000290, isotonic 0.000266 (-68.9% vs none)
-  -> ISOTONIC selected.
-- t_review = 0.02 — recall 0.8485 (28/33), precision 0.3457, expected cost €541.16,
-  2.85 alerts/1k. **recall >= 0.85 NOT achievable on the 0.01-0.95 grid**: max recall on the
-  grid is 0.8485 (29 of 33 needed); 5 of 33 valid_thr frauds score below 0.01.
-  Chosen by the documented fallback (max recall, then min cost); met_target = false.
-- t_block = 0.23 — precision 0.9643 (27 TP, 1 FP), recall 0.8182. **precision >= 0.90 achievable.**
-- Tiers on valid_thr: HIGH/HOLD 28 rows (27 fraud), MEDIUM/REVIEW 53 rows (1 fraud),
-  LOW/APPROVE 28,292 rows (5 fraud). The REVIEW band is almost all false positives.
-- Stability (200 resamples, report only): t_review median 0.02, IQR [0.02, 0.34], target met
-  in 45.5% of resamples; t_block median 0.23, IQR [0.23, 0.23], exists in 100%.
-- Cost sensitivity: t_review stays 0.02 at €2 / €5 / €20 (cost €298.16 / €541.16 / €1,756.16).
+### TIME split (headline) — tuned logreg — calibration: ISOTONIC
+| candidate | Brier | log-loss | ECE | PR-AUC |
+|---|---|---|---|---|
+| none | 0.000855 | 0.004161 | 0.000824 | 0.8375 |
+| sigmoid | 0.000290 | 0.002070 | 0.000264 | 0.8375 |
+| isotonic | 0.000266 | 0.002005 | 0.000182 | 0.8294 |
+- How applied: isotonic lowest Brier, 68.9% below 'none' (> 5%) -> isotonic. Trade-off:
+  isotonic ties lower valid_thr PR-AUC 0.8375 -> 0.8294; the rule is Brier, so isotonic stands.
+- **t_review = 0.02 — FALLBACK (recall >= 0.85 NOT achievable on the grid)**: recall 0.8485
+  (28/33; 29 needed), precision 0.3457, 2.85 alerts/1k, expected cost €541.16.
+  5 of 33 valid_thr frauds score below 0.01 (grid floor).
+- **t_block = 0.23** — precision 0.9643 (27 TP, 1 FP), recall 0.8182. precision >= 0.90 achievable.
+- Tiers (valid_thr): HIGH/HOLD 28 (27 fraud, fraud share 0.964); MEDIUM/REVIEW 53 (1 fraud,
+  0.019); LOW/APPROVE 28,292 (5 fraud). The REVIEW band is almost all false positives.
+- Stability: t_review median 0.02, IQR [0.02, 0.34], target met in 45.5% of resamples;
+  t_block median 0.23, IQR [0.23, 0.23], exists in 100%.
+- Cost sensitivity: t_review 0.02 at €2 / €5 / €20 (cost €298.16 / €541.16 / €1,756.16).
 
-### STRATIFIED split — tuned xgb_u
-- Brier valid_thr: none 0.000306, sigmoid 0.000305, isotonic 0.000294 (-3.8% vs none,
-  within 5%) -> NONE selected.
-- t_review = 0.06 — recall 0.9149 (43/47), precision 0.8431, expected cost €1,521.53,
-  1.80 alerts/1k. **recall >= 0.85 achieved** (met_target = true).
-- t_block = 0.22 — precision 0.9111 (41 TP, 4 FP), recall 0.8723. **precision >= 0.90 achievable.**
-- Tiers on valid_thr: HIGH 45 rows (41 fraud), MEDIUM 6 (2), LOW 28,322 (4).
+### STRATIFIED split — tuned xgb_u — calibration: NONE
+| candidate | Brier | log-loss | ECE | PR-AUC |
+|---|---|---|---|---|
+| none | 0.000306 | 0.001922 | 0.000226 | 0.9089 |
+| sigmoid | 0.000305 | 0.002290 | 0.000120 | 0.9089 |
+| isotonic | 0.000294 | 0.001817 | 0.000138 | 0.8881 |
+- How applied: isotonic lowest Brier but only 3.8% below 'none' (within 5%) -> none.
+- **t_review = 0.06 — recall >= 0.85 achieved**: recall 0.9149 (43/47), precision 0.8431,
+  1.80 alerts/1k, expected cost €1,521.53.
+- **t_block = 0.22** — precision 0.9111 (41 TP, 4 FP), recall 0.8723. precision >= 0.90 achievable.
+- Tiers: HIGH 45 (41 fraud, share 0.911); MEDIUM 6 (2, 0.333); LOW 28,322 (4).
 - Stability: t_review median 0.06, IQR [0.06, 0.22], target met in 93.5%; t_block median 0.22,
   IQR [0.09, 0.41], exists in 92%.
-- Cost sensitivity: t_review stays 0.06 at €2 / €5 / €20 (€1,368.53 / €1,521.53 / €2,286.53).
+- Cost sensitivity: t_review 0.06 at €2 / €5 / €20 (€1,368.53 / €1,521.53 / €2,286.53).
+
+### Small-data warning (also in README)
+Each validation half holds only 24-47 frauds. On the time split one fraud is ~3 pp of recall,
+the t_review IQR spans 0.02-0.34 and the target is met in under half of the resamples. The
+time-split isotonic map is fitted on 24 positives. Treat calibration and thresholds as rough.
 
 ### Artifacts & housekeeping
+- policy_{split}.json (t_review, t_block, operating point, tiers, stability, sensitivity)
+  REPLACES frozen_threshold_{split}.json (removed; recoverable from commit 17db32d).
+  New: tier_table_{split}.csv; calibration_{split}.json now holds all four candidate metrics.
 - models/final_model_time.joblib = isotonic-calibrated tuned logreg;
-  models/final_model_stratified.joblib = uncalibrated tuned xgb_u. Both overwrite the v1 files
-  (which were built with the pre-v2 rules and a non-champion model); git history keeps v1.
-- Overwritten v1 Phase 8 outputs: frozen_threshold_*, threshold_table_*, cost_sensitivity_*,
-  valid_subsplit_indices_* (now compact JSON), reliability_*.png, cost_vs_threshold_*.png.
-  New: calibration_{split}.json, src/fraud_detection/policy.py.
-- calibrate.py rewritten for v2; its 3 old ruff errors are gone. `ruff check .` passes on the
-  whole repo; pytest 155 passed.
+  models/final_model_stratified.joblib = uncalibrated tuned xgb_u.
+- The full-spec re-run reproduced threshold tables, sensitivity tables, plots, sub-split indices
+  and both model files byte-for-byte versus commit 17db32d.
 
 ### Open for KING before Phase 9 pre-registration
-- TIME t_review misses recall 0.85 by one fraud on valid_thr (0.8485). Documented fallback
-  applied; accept as-is, or decide a grid change (would be a protocol change -> log here).
-- Confirm the calibration-rule conflict resolution (v2 addendum used).
-- valid_cal (time) has 24 frauds (< 30): the isotonic map is fitted on few positives.
+- TIME t_review is a documented FALLBACK (recall 0.8485 < 0.85, one fraud short on valid_thr).
+  Accept as-is for pre-registration, or change the grid (a protocol change -> log here).
+- valid_cal (time) has 24 frauds (< 30): the isotonic map rests on few positives.
