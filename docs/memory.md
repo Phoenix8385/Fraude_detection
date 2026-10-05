@@ -125,3 +125,13 @@
   the recall >= 0.85 target will likely cost low precision on the time split (Phase 8).
 - Phase 7: tuned xgb_weighted on time valid (0.7643) is BELOW logreg (0.7806). The best
   time-split model remains UNTUNED xgb_weighted (0.7880). Final-model choice for Phase 8 pending.
+
+## Phase 6 results (time-split validation PR-AUC)
+weighted XGB 0.7880 | LR 0.7806 | plain XGB 0.7798 | SMOTE-10 0.7773 | SMOTE 0.7706
+
+## Locked decisions
+Champion (provisional): weighted XGB
+Rule: highest tuned valid PR-AUC; if paired-bootstrap CI vs tuned LR includes 0, tie-break on expected cost at recall >= 0.85, then simplicity
+t_review: min expected cost with recall >= 0.85
+t_block: precision >= 0.90
+Test set opened once in Phase 9 only

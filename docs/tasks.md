@@ -1,18 +1,30 @@
-# Tasks & Progress
+# Tasks & Progress (v2)
 
-- [x] Phase 1 — Repo, environment, config, context docs
-- [x] Phase 2 — Data loading, Pandera validation, dedupe
-- [x] Phase 3 — EDA notebook, figures, engineered features
-- [x] Phase 4 — Stratified + time-based splits
-- [x] Phase 5 — Metrics module, baselines (dummy, logreg, iforest), MLflow
-- [x] Phase 6 — XGBoost plain / weighted / SMOTE / SMOTE-0.1 comparison
-- [x] Phase 7 — Hyperparameter tuning (PR-AUC)
-- [ ] Phase 8 — Calibration + cost-based threshold
-- [ ] Phase 9 — One-shot final test evaluation
-- [ ] Phase 10 — SHAP, model artifact, Predictor
-- [ ] Phase 11 — FastAPI service + latency benchmark
-- [ ] Phase 12 — Test coverage, Docker, GitHub Actions
-- [ ] Phase 13 — Render deploy, drift check, README, resume bullets
+## Done
+- [x] Phase 1 Repo, env, config
+- [x] Phase 2 Data loading, validation, dedupe
+- [x] Phase 3 EDA + features
+- [x] Phase 4 Stratified + time splits
+- [x] Phase 5 Metrics, baselines, MLflow
+- [x] Phase 6 XGBoost plain / weighted / SMOTE comparison
+
+## Part A - Model
+- [ ] Phase 7 Optuna tuning + bootstrap CIs + champion decision
+- [ ] Phase 8 Calibration + two-threshold policy
+- [ ] Phase 9 One-shot test evaluation (pre-registered)
+- [ ] Phase 10 SHAP, artifact, reference profile, model card
+
+## Part B - Service (release v1.0.0)
+- [ ] Phase 11 Predictor + FastAPI /v1 core
+- [ ] Phase 12 Test hardening (>=85%)
+- [ ] Phase 13 Docker (API)
+- [ ] Phase 14 CI/CD + live Render deploy + tag v1.0.0
+
+## Part C - Product (release v1.1.0)
+- [ ] Phase 15 Neon PostgreSQL logging
+- [ ] Phase 16 Streamlit dashboard
+- [ ] Phase 17 PSI drift + simulation + weekly workflow
+- [ ] Phase 18 Compose, final deploy, README, runbook, tag v1.1.0
 
 ## Current phase
-Phase 7 complete (2026-09-24). Phase 8 in progress: threshold.py + tests done; calibrate.py waits for human choice of final model per split
+Phase 7

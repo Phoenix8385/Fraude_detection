@@ -1,52 +1,41 @@
-# PRD — Fraud & Anomaly Detection System
+# PRD v2 — Fraud & Anomaly Detection System
 
 ## Problem
-Card fraud is rare (0.173% of transactions in the dataset) and costly. A naive model
-that labels everything legitimate is 99.8% accurate and catches nothing. A fraud team
-needs (1) a risk score that ranks fraud well, (2) an alert threshold that balances
-missed fraud against analyst workload, and (3) a reason for each alert.
+Card fraud is rare (0.173%) and costly. Accuracy is meaningless (always-legit = 99.8%).
+Analysts need: a risk score that ranks fraud well, a cutoff chosen by cost, a reason per alert.
 
 ## Users
-- Fraud analyst: reviews flagged transactions, needs probability + top contributing features.
-- Integrating service/engineer: calls a REST API, needs a stable contract and low latency.
-- Reviewer (interviewer): needs a reproducible, honest evaluation.
+Fraud analyst (dashboard, explanations) · Integrating engineer (REST API) · Reviewer/interviewer (reproducible, honest evaluation).
 
 ## Dataset
-Kaggle mlg-ulb/creditcardfraud — 284,807 rows, 492 fraud, features Time, V1–V28 (PCA,
-anonymised), Amount; target Class. Historical, 2 days, Sept 2013. Not committed to git.
+Kaggle mlg-ulb/creditcardfraud: 284,807 rows, 492 fraud, Time, V1-V28 (PCA, anonymised), Amount, Class. Not committed.
 
-## Scope — v1 (FROZEN)
-1. Validated data loading with de-duplication before splitting.
-2. Two split designs (stratified 60/20/20, time-based 60/20/20 — primary).
-3. Model comparison: Dummy, Logistic Regression, Isolation Forest, XGBoost plain,
-   XGBoost weighted, XGBoost + SMOTE (1.0 and 0.1 sampling), tracked in MLflow.
-4. Hyperparameter tuning scored by PR-AUC.
-5. Calibration check + cost-based threshold selection on validation.
-6. One-shot final test evaluation.
-7. SHAP global + per-transaction explanations.
-8. Versioned model artifact.
-9. FastAPI: /health, /model-info, /predict, /predict/batch, /explain.
-10. Pytest (>=80% coverage), Docker, GitHub Actions CI, Render deployment.
-11. JSON prediction logs + PSI drift-check script.
+## Releases
+### v1.0.0 (Phases 7-14)
+Tuned champion (Optuna) with bootstrap CIs; calibration; two-threshold policy (APPROVE/REVIEW/HOLD);
+one-shot test evaluation; SHAP; versioned artifact + model card; FastAPI /v1 (predict, batch, explain);
+API key + rate limit; tests >=85%; Docker; GitHub Actions CI + deploy hook; live on Render.
+### v1.1.0 (Phases 15-18)
+Neon PostgreSQL prediction log (no raw features); Streamlit dashboard (API-only); PSI drift endpoint,
+simulation and weekly workflow; docker-compose; RUNBOOK; final README.
 
-## Out of scope (v1)
-Streaming (Kafka), Spark, Kubernetes, Airflow, LLMs/RAG/agents, feature store,
-automatic retraining, user accounts, a frontend UI.
+## Out of scope
+Streaming, Spark, Kubernetes, Airflow, Redis, LLMs, automatic retraining, auth/user accounts.
 
 ## Success criteria
-- Evaluation protocol in docs/evaluation.md followed exactly (test opened once).
-- Final model beats Logistic Regression and Isolation Forest on validation PR-AUC.
-- Chosen threshold meets recall >= 0.85 on validation (or deviation documented).
-- API p95 latency < 50 ms locally for single prediction.
-- Clone → docker build → docker run → /docs works with no manual steps.
+- evaluation.md protocol followed; test opened once.
+- Headline metrics reported with 95% bootstrap CIs.
+- Champion chosen by the written rule in memory.md.
+- recall >= 0.85 at t_review on validation (or deviation documented).
+- p95 single-prediction latency < 50 ms locally.
+- Clone -> docker compose up -> dashboard + API work.
 
 ## Honesty constraints
-- Never say "accuracy" as the headline metric.
-- Never claim meaning for V1–V28.
-- Say "real-time inference API", never "real-time fraud detection platform".
-- SHAP output is "model contribution", never "cause".
+- Never headline accuracy. Never give V1-V28 meaning. Say "risk-scoring API", not "real-time fraud platform".
+- SHAP = "model contribution", never "cause". Drift demo is simulated and labelled so.
+- Free hosting: state cold-start behaviour in README.
 
-## README sections (16)
-Problem · Why it's hard · Dataset · Architecture · EDA findings · Validation design ·
-Models compared · Results · Threshold & cost · Calibration · Explainability · API ·
-Run locally / Docker · Testing & CI · Limitations · Future work
+## README sections
+Problem · Why it's hard · Dataset · Architecture · EDA · Validation design · Models compared ·
+Results (with CIs) · Decision policy · Calibration · Explainability · API · Dashboard · Monitoring ·
+Run locally / Docker · Testing & CI · Limitations · Future work · Model card

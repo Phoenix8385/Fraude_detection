@@ -1,42 +1,33 @@
-# Architecture
+# Architecture v2
 
 ## Flow
-raw CSV → data.py (load, Pandera validate, dedupe) → features.py (log_amount, hour_of_day)
-→ splits.py (stratified | time, 60/20/20) → train.py (experiment matrix, MLflow)
-→ tune.py → calibrate.py (valid_cal half) → threshold.py (valid_thr half)
-→ evaluate.py (TEST, once) → explain.py (SHAP) → artifacts.py (joblib + meta.json)
-→ predict.py (Predictor) → api/main.py (FastAPI) → Docker → Render
+CSV -> data.py (validate, dedupe) -> features.py -> splits.py (stratified | time) -> train.py (MLflow)
+-> tune.py (Optuna, bootstrap CIs) -> calibrate.py (valid_cal) -> policy.py (valid_thr: t_review, t_block)
+-> evaluate.py (TEST once) -> explain.py -> artifacts.py -> predict.py -> api/ -> Docker -> CI -> Render
+Product layer: api/store.py -> Neon Postgres -> /v1/stats/* -> Streamlit dashboard; drift.py (PSI).
 
-## Module contracts
-| Module | Input | Output | Rule |
-|---|---|---|---|
-| schema.py | — | FEATURE_COLUMNS (30), TARGET, Pandera schema | single source of column truth |
-| data.py | CSV path | clean DataFrame + summary dict | dedupe before any split |
-| features.py | DataFrame | new DataFrame + MODEL_FEATURES | pure, no fitting; shared by train & API |
-| splits.py | DataFrame | {train, valid, test} parquet | deterministic, seed from config |
-| metrics.py | y, proba, threshold, amounts | metrics dict | pure function |
-| models.py | name, params | sklearn/imblearn Pipeline | resampling only inside pipeline |
-| threshold.py | y, proba, amounts | table + chosen threshold | validation only |
-| evaluate.py | frozen model + threshold | final_*.json | only module that loads TEST |
-| artifacts.py | pipeline, calibrator, meta | models/fraud_model.joblib, model_meta.json | meta carries feature order + versions |
-| predict.py | dict / list[dict] | prediction dicts | orders columns from meta |
+## Modules
+| Module | Contract |
+|---|---|
+| policy.py | decide(p,t_review,t_block) -> (tier, action): HIGH/HOLD, MEDIUM/REVIEW, LOW/APPROVE |
+| drift.py | psi(reference, current) using models/reference_profile.json |
+| store.py | PredictionStore protocol: NullStore (v1.0), SqlStore (v1.1); failures swallowed + counted |
+| artifacts.py | model.joblib + model_meta.json (version, thresholds, features, schema_hash, lib versions, git commit) |
 
-## Artifact: models/model_meta.json
-model_version, model_name, headline_split, threshold, calibrated, features[],
-trained_at, test_metrics{}, library_versions{}, git_commit.
+## API (v1)
+- GET /health (liveness) · GET /ready (model loaded; reports db_ok) · GET /model-info
+- POST /v1/predict {transaction_id?, Time, Amount, V1..V28} -> {transaction_id, fraud_probability, risk_tier,
+  recommended_action, is_flagged, thresholds{review,block}, model_version, latency_ms}
+- POST /v1/predict/batch (max 500) · POST /v1/explain (top 5 contributions, log-odds, uncalibrated)
+- GET /v1/stats/summary?hours= · GET /v1/predictions/recent?limit= · GET /v1/stats/drift?hours=
+- Auth: X-API-Key if API_KEY set (not on /health, /ready, /docs). Rate limit via slowapi. CORS from ALLOWED_ORIGINS.
+- Errors: {"error": {"code","message","request_id"}}. 401, 422, 429, 503.
+- Logs: JSON, one line per prediction, no feature values.
 
-## API contract
-- GET /health → {status: "ok"|"degraded", model_loaded, model_version}
-- GET /model-info → meta subset (version, name, threshold, features, test_metrics, trained_at)
-- POST /predict → body: Time, Amount, V1..V28 (floats, finite), optional transaction_id;
-  extra fields rejected → {transaction_id, fraud_probability, is_fraud, threshold,
-  risk_level (low|medium|high), model_version, latency_ms}
-- POST /predict/batch → {transactions: [...]} max 1000 → {predictions: [...]}
-- POST /explain → prediction + base_value + top 5 {feature, value, contribution}
-  (log-odds of uncalibrated model)
-- Errors: 422 validation, 401 bad/missing X-API-Key (only if API_KEY set), 503 no model.
-- Model loaded once in lifespan. Raw feature values never logged.
+## predictions table
+id, request_id, transaction_id, created_at(idx), amount, fraud_probability, risk_tier,
+recommended_action, model_version, latency_ms, top_features(jsonb, names only). 30-day retention.
 
 ## Deployment
-python:3.11-slim + libgomp1, requirements-api.txt only, non-root user,
-HEALTHCHECK /health, PORT from env. CI: ruff + pytest --cov + docker build.
+API: Render (Docker, free; sleeps ~15 min idle). DB: Neon free. Dashboard: Streamlit Community Cloud.
+CI: ruff, pytest --cov-fail-under=85, docker smoke, deploy hook, post-deploy /ready retries.

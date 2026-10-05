@@ -15,3 +15,13 @@
 13. Pin nothing silently: if you change a dependency version, say so and why.
 14. If a requirement is ambiguous, ask — do not invent one.
 15. Git Bash syntax for all commands; activate venv with `source .venv/Scripts/activate`.
+# Rules addendum (append to docs/rules.md)
+16. Never load the test split outside evaluate.py (enforced by a test).
+17. Never store or log V1..V28 values. Amount, score, tier, version, latency only.
+18. DB or store errors are caught and logged; they never change the API response.
+19. API responses are versioned under /v1; breaking changes need a new prefix and an openapi snapshot update.
+20. The dashboard talks to the API only. No direct DB access from the dashboard.
+21. Docker images install from requirements-api.lock (exact pins identical to training).
+22. Secrets only via environment variables or CI secrets. .env.example has placeholders only.
+23. README and MODEL_CARD numbers must be traceable to reports/metrics/*.
+24. Label simulated drift as simulated everywhere it appears.
