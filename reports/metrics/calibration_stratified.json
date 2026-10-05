@@ -1,0 +1,29 @@
+{
+  "split": "stratified",
+  "model": "xgb_u",
+  "mlflow_run_id": "15a37803c60b4c11b7f6e02007e6ff38",
+  "halves": {
+    "valid_cal": {
+      "rows": 28372,
+      "fraud": 47,
+      "time_min": 0.0,
+      "time_max": 172766.0
+    },
+    "valid_thr": {
+      "rows": 28373,
+      "fraud": 47,
+      "time_min": 1.0,
+      "time_max": 172792.0
+    }
+  },
+  "brier_valid_thr": {
+    "none": 0.0003056274726986885,
+    "sigmoid": 0.0003050606107109639,
+    "isotonic": 0.00029401640123659963
+  },
+  "selected": "none",
+  "lowest_brier": "isotonic",
+  "relative_improvement_vs_none": 0.037990928497242706,
+  "rule": "lowest Brier on valid_thr; within 5% of 'none' -> 'none'",
+  "fit": "CalibratedClassifierCV(FrozenEstimator(model), method) on valid_cal"
+}

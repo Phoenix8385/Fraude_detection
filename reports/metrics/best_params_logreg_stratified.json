@@ -1,0 +1,25 @@
+{
+  "model": "logreg",
+  "split": "stratified",
+  "best_params": {
+    "C": 0.0006966154543618859,
+    "class_weight": null
+  },
+  "best_trial": 42,
+  "cv": "StratifiedKFold",
+  "cv_folds": 5,
+  "n_trials": 50,
+  "sampler": "TPESampler(seed=42)",
+  "cv_pr_auc_mean": 0.7429783768229723,
+  "cv_pr_auc_std": 0.06101299002699275,
+  "cv_pr_auc_folds": [
+    0.6651195551945291,
+    0.8119089603713179,
+    0.6898474065281153,
+    0.7349507753375624,
+    0.8130651866833367
+  ],
+  "valid_pr_auc": 0.7832002220070323,
+  "search_seconds": 104.8,
+  "mlflow_run_id": "6413430fe6974b6883df422576853af3"
+}

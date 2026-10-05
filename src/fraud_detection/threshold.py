@@ -69,6 +69,70 @@ def choose_threshold(table: pd.DataFrame, target_recall: float) -> dict[str, Any
     return {**best.to_dict(), "met_target": met, "rule": rule, "target_recall": target_recall}
 
 
+def choose_block_threshold(
+    table: pd.DataFrame, min_precision: float, min_tp: int
+) -> dict[str, Any]:
+    """t_block: the SMALLEST threshold with precision >= min_precision and >= min_tp true
+    positives at or above it (docs/evaluation.md, "Decision policy").
+
+    If no threshold qualifies, t_block does not exist: returns exists=False, threshold=None.
+    The rule is never relaxed.
+    """
+    rule = f"smallest threshold with precision >= {min_precision} and tp >= {min_tp}"
+    ok = table[(table["precision"] >= min_precision) & (table["tp"] >= min_tp)]
+    if not len(ok):
+        return {"exists": False, "threshold": None, "rule": rule}
+    best = ok.sort_values("threshold").iloc[0]
+    return {"exists": True, **best.to_dict(), "rule": rule}
+
+
+def threshold_stability(
+    y: ArrayLike,
+    proba: ArrayLike,
+    amounts: ArrayLike,
+    review_cost: float,
+    target_recall: float,
+    block_precision: float,
+    block_min_tp: int,
+    n_resamples: int,
+    seed: int,
+    grid: ArrayLike = DEFAULT_GRID,
+) -> dict[str, Any]:
+    """Re-run both threshold rules on stratified bootstrap resamples; median + IQR.
+
+    Report only: the frozen thresholds are NOT changed by this (docs/evaluation.md).
+    """
+    from fraud_detection.bootstrap import stratified_resample
+
+    y_arr = np.asarray(y).astype(int)
+    p_arr = np.asarray(proba, dtype=float)
+    amt = np.asarray(amounts, dtype=float)
+    rng = np.random.default_rng(seed)
+    review, met, block = [], [], []
+    for _ in range(n_resamples):
+        idx = stratified_resample(y_arr, rng)
+        table = threshold_table(y_arr[idx], p_arr[idx], amt[idx], review_cost, grid)
+        chosen = choose_threshold(table, target_recall)
+        review.append(chosen["threshold"])
+        met.append(chosen["met_target"])
+        b = choose_block_threshold(table, block_precision, block_min_tp)
+        if b["exists"]:
+            block.append(b["threshold"])
+
+    def spread(values: list[float]) -> dict[str, float] | None:
+        if not values:
+            return None
+        q25, median, q75 = np.percentile(values, [25, 50, 75])
+        return {"median": float(median), "q25": float(q25), "q75": float(q75)}
+
+    return {
+        "n_resamples": n_resamples,
+        "seed": seed,
+        "t_review": {**(spread(review) or {}), "share_met_target": float(np.mean(met))},
+        "t_block": {"spread": spread(block), "share_exists": len(block) / n_resamples},
+    }
+
+
 def cost_sensitivity(
     y: ArrayLike,
     proba: ArrayLike,

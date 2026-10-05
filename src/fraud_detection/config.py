@@ -49,6 +49,39 @@ class CostConfig:
 
 
 @dataclass(frozen=True)
+class TuningConfig:
+    """Optuna search budget (Phase 7)."""
+
+    n_trials: int
+    cv_folds: int
+
+
+@dataclass(frozen=True)
+class BootstrapConfig:
+    """Bootstrap settings for confidence intervals; the resampling seed is Config.seed."""
+
+    n_resamples: int
+    ci_level: float
+
+
+@dataclass(frozen=True)
+class CalibrationConfig:
+    """Calibration selection settings (Phase 8)."""
+
+    none_tolerance: float
+    min_half_positives: int
+
+
+@dataclass(frozen=True)
+class PolicyConfig:
+    """Two-threshold decision policy settings (Phase 8)."""
+
+    block_precision: float
+    block_min_tp: int
+    stability_resamples: int
+
+
+@dataclass(frozen=True)
 class Config:
     """Top-level project configuration."""
 
@@ -57,6 +90,11 @@ class Config:
     split: SplitConfig
     costs: CostConfig
     target_recall: float
+    tuning: TuningConfig
+    bootstrap: BootstrapConfig
+    stability_seeds: tuple[int, ...]
+    calibration: CalibrationConfig
+    policy: PolicyConfig
 
 
 def _resolve(relative: str, root: Path) -> Path:
@@ -90,6 +128,23 @@ def load_config(path: Path | str | None = None, root: Path = PROJECT_ROOT) -> Co
         split=split,
         costs=costs,
         target_recall=float(raw["target_recall"]),
+        tuning=TuningConfig(
+            n_trials=int(raw["tuning"]["n_trials"]), cv_folds=int(raw["tuning"]["cv_folds"])
+        ),
+        bootstrap=BootstrapConfig(
+            n_resamples=int(raw["bootstrap"]["n_resamples"]),
+            ci_level=float(raw["bootstrap"]["ci_level"]),
+        ),
+        stability_seeds=tuple(int(s) for s in raw["stability_seeds"]),
+        calibration=CalibrationConfig(
+            none_tolerance=float(raw["calibration"]["none_tolerance"]),
+            min_half_positives=int(raw["calibration"]["min_half_positives"]),
+        ),
+        policy=PolicyConfig(
+            block_precision=float(raw["policy"]["block_precision"]),
+            block_min_tp=int(raw["policy"]["block_min_tp"]),
+            stability_resamples=int(raw["policy"]["stability_resamples"]),
+        ),
     )
     _validate(config)
     return config
@@ -104,3 +159,16 @@ def _validate(config: Config) -> None:
         raise ValueError(f"target_recall must be in (0, 1], got {config.target_recall}")
     if config.costs.review_cost_per_alert < 0:
         raise ValueError("review_cost_per_alert must be non-negative")
+    if config.tuning.n_trials < 1 or config.tuning.cv_folds < 2:
+        raise ValueError("tuning needs n_trials >= 1 and cv_folds >= 2")
+    if config.bootstrap.n_resamples < 1 or not 0.0 < config.bootstrap.ci_level < 1.0:
+        raise ValueError("bootstrap needs n_resamples >= 1 and ci_level in (0, 1)")
+    seeds = config.stability_seeds
+    if not seeds or len(set(seeds)) != len(seeds):
+        raise ValueError("stability_seeds must be a non-empty list of distinct integers")
+    if not 0.0 <= config.calibration.none_tolerance < 1.0:
+        raise ValueError("calibration.none_tolerance must be in [0, 1)")
+    if not 0.0 < config.policy.block_precision <= 1.0 or config.policy.block_min_tp < 1:
+        raise ValueError("policy needs block_precision in (0, 1] and block_min_tp >= 1")
+    if config.policy.stability_resamples < 1:
+        raise ValueError("policy.stability_resamples must be >= 1")

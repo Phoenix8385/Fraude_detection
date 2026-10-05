@@ -1,0 +1,32 @@
+{
+  "model": "xgb_u",
+  "split": "time",
+  "best_params": {
+    "n_estimators": 650,
+    "max_depth": 6,
+    "learning_rate": 0.021259131950302004,
+    "subsample": 0.8027983286607591,
+    "colsample_bytree": 0.9552236960281277,
+    "min_child_weight": 1.3393398619474375,
+    "reg_lambda": 3.1651194005428067,
+    "u": 0.12262438564811953
+  },
+  "best_trial": 22,
+  "cv": "TimeSeriesSplit",
+  "cv_folds": 5,
+  "n_trials": 50,
+  "sampler": "TPESampler(seed=42)",
+  "cv_pr_auc_mean": 0.803073176300998,
+  "cv_pr_auc_std": 0.04627304059057674,
+  "cv_pr_auc_folds": [
+    0.8736682960752973,
+    0.8224080579998572,
+    0.7516751993990026,
+    0.7524674739018012,
+    0.8151468541290318
+  ],
+  "valid_pr_auc": 0.777258998626511,
+  "search_seconds": 765.6,
+  "mlflow_run_id": "ac79a4b7341b4029a27a8ec7e02c8924",
+  "scale_pos_weight": 2.1409867260065076
+}

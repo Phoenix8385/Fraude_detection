@@ -27,8 +27,11 @@
 - Phase 7 tuned valid PR-AUC (untuned → tuned): strat xgb_weighted 0.8888→0.8873 (−0.0015),
   xgb 0.8899→0.8852 (−0.0047); time xgb_weighted 0.7880→0.7643 (−0.0238), xgb 0.7798→0.7807
   (+0.0009). Tuning did not improve validation PR-AUC. Source: reports/metrics/tuning_summary.md
-- Phase 8 calibration kept? Brier before/after:
-- Phase 8 frozen threshold (strat / time):
+- Phase 8 calibration kept? Brier before/after (valid_thr): time (logreg) ISOTONIC kept,
+  0.000855 -> 0.000266; stratified (xgb_u) NONE (isotonic 0.000294 only 3.8% below 0.000306)
+  — source: reports/metrics/calibration_{split}.json
+- Phase 8 frozen thresholds (strat / time): t_review 0.06 / 0.02 (time: recall target NOT met),
+  t_block 0.22 / 0.23 — source: reports/metrics/frozen_threshold_{split}.json
 - PRE-REGISTRATION before Phase 9 (model, params file, calibrated, threshold, date):
 - Phase 9 final test metrics:
 - Phase 11 p95 latency:
@@ -145,3 +148,133 @@ Rule: highest tuned valid PR-AUC; if paired-bootstrap CI vs tuned LR includes 0,
 t_review: min expected cost with recall >= 0.85
 t_block: precision >= 0.90
 Test set opened once in Phase 9 only
+
+## Phase 7 (v2) decisions & results (2026-10-05) — Optuna + bootstrap + champion
+Source for every number below: reports/metrics/champion_{stratified,time}.json,
+champion_summary.md, best_params_{xgb_u,logreg}_{split}.json (all VALIDATION; test not used).
+- Tuner: Optuna TPESampler(seed=42), 50 trials/model/split, 5-fold CV on TRAIN only
+  (StratifiedKFold shuffled | TimeSeriesSplit on time-sorted rows), objective = mean CV PR-AUC.
+  RandomizedSearchCV (earlier Phase 7 attempt, tuning_summary.md / best_params_xgb*_*.json) is
+  superseded; those files are kept only as history.
+- Models tuned: "xgb_u" = XGBoost with scale_pos_weight = (n_legit/n_fraud)^u, u in [0,1]
+  (u=0 plain, u=1 Phase 6 xgb_weighted); "logreg" = scaled LR, C (log 1e-4..1e2) + class_weight
+  {balanced, None}. Phase 5/6 configs enqueued as first trials. Human chose this u definition.
+- FIXES the Phase 7 caveat above: xgb_u's weight is recomputed from each CV fold's own
+  training labels (fold hold-out labels no longer influence it).
+- Bootstrap: 1,000 stratified resamples, seed 42, 95% percentile CI; paired on shared indices.
+- 5-seed check: tuned configs refit with seeds 42-46 (config stability_seeds). LR (lbfgs) is
+  deterministic, so its seed std is 0 by construction.
+- Champion rule interpretation (written in champion.choose_champion before results were seen):
+  tie-break 1 needs "cost at recall >= 0.85"; a model that cannot reach 0.85 has no such cost.
+  If neither reaches it, tie-break 1 cannot decide -> tie-break 2.
+- Operating points (min cost s.t. recall >= 0.85) are chosen AND reported on full validation
+  (optimistic); used only for tie-break 1. Phase 8 re-selects on valid_thr.
+
+### Results — TIME split (headline), valid fraud = 57
+- xgb_u tuned: best u = 0.1226 (scale_pos_weight 2.14, vs 497 at u=1). Params: n_estimators 650,
+  max_depth 6, learning_rate 0.0213, subsample 0.803, colsample_bytree 0.955,
+  min_child_weight 1.34, reg_lambda 3.17. CV PR-AUC 0.8031 ± 0.0463.
+  Valid PR-AUC 0.7773 [95% CI 0.6703, 0.8687]; 5-seed 0.7797 ± 0.0020.
+- logreg tuned: C = 0.000802, class_weight = None. CV PR-AUC 0.7695 ± 0.0763.
+  Valid PR-AUC 0.7759 [0.6693, 0.8699]; 5-seed 0.7759 ± 0.0000.
+- Paired PR-AUC (xgb_u - logreg): +0.0013 [-0.0208, +0.0239], prob_a_better = 0.546.
+  **NOT statistically distinguishable: the 95% CI includes 0.**
+- Tie-break 1: neither model reaches recall 0.85 at any grid threshold (both best at t=0.01:
+  xgb_u recall 0.807, cost €5,135; logreg recall 0.772, cost €4,799) -> cannot decide.
+- Tie-break 2 -> **CHAMPION (time, headline) = tuned Logistic Regression.**
+  Robustness: even if tie-break 1 compared the below-target costs, logreg (€4,799) < xgb_u
+  (€5,135), so the champion would be the same.
+- vs Phase 6 untuned valid PR-AUC: logreg 0.7806 -> 0.7759 (-0.0046); xgb_u 0.7773 vs untuned
+  xgb_weighted 0.7880 (-0.0108) and xgb 0.7798 (-0.0025). Tuning did NOT improve validation
+  PR-AUC on the time split; CV gains (0.7873 Phase 6 config -> 0.8031) did not carry over to
+  the later validation period. Untuned models are not candidates under the rule.
+
+### Results — STRATIFIED split, valid fraud = 94
+- xgb_u tuned: best u = 0.9273 (scale_pos_weight 375.9). Params: n_estimators 700, max_depth 7,
+  learning_rate 0.0407, subsample 0.578, colsample_bytree 0.616, min_child_weight 1.37,
+  reg_lambda 0.873. CV 0.8520 ± 0.0695. Valid PR-AUC 0.8848 [0.8232, 0.9461]; 5-seed 0.8830 ± 0.0016.
+- logreg tuned: C = 0.000697, class_weight = None. CV 0.7430 ± 0.0610.
+  Valid PR-AUC 0.7832 [0.6960, 0.8685]; 5-seed 0.7832 ± 0.0000.
+- Paired (xgb_u - logreg): +0.1016 [+0.0433, +0.1572], prob_a_better = 1.000 -> CI excludes 0.
+  **CHAMPION (stratified) = xgb_u, by the main rule** (no tie-break needed).
+- vs Phase 6 untuned: logreg 0.7882 -> 0.7832 (-0.0050); xgb_u 0.8848 vs xgb 0.8899 (-0.0050),
+  xgb_weighted 0.8888 (-0.0040). Again no validation gain from tuning.
+
+### Takeaways
+- The "Locked decisions" entry "Champion (provisional): weighted XGB" is SUPERSEDED by the
+  pre-registered rule: headline (time) champion = tuned LR; stratified champion = xgb_u.
+- Split disagreement: on the stratified (random) split XGB is clearly better; on the
+  time-ordered split its advantage disappears. With 57 validation frauds, the CI width (~0.20
+  PR-AUC) is ~100x the seed-to-seed std (0.002) — data scarcity, not seed noise, dominates.
+- Optuna picked small u on time (0.12) and near-full weighting on stratified (0.93).
+- Both tuned LRs prefer class_weight=None with strong regularisation (C ~ 7e-4 to 8e-4).
+- Recall 0.85 is not reachable on full time-validation within the 0.01-0.95 grid for either
+  model -> carried to Phase 8 (grid floor decision pending, see Open issues).
+- Process: champion CLI re-run reproduced both champion_*.json byte-for-byte.
+- ruff: passes with calibrate.py excluded; calibrate.py's 3 pre-existing errors left for Phase 8
+  (human decision). Dependency change: optuna 5.0.0 (+ colorlog 6.12.0) added; lock regenerated
+  as UTF-8 without the local editable line.
+- Observation: data/processed/*_test.parquet last-access time is 2026-09-30 15:09 (before this
+  session; cause unknown — not Phase 7 code). Phase 7 code never opens them
+  (tests/test_no_test_leakage.py).
+
+## Phase 8 (v2) decisions & results (2026-10-05) — calibration + two-threshold policy
+Source for every number below: reports/metrics/calibration_{split}.json,
+frozen_threshold_{split}.json, threshold_table_{split}.csv, cost_sensitivity_{split}.csv
+(all valid_thr / valid_cal; test not used). Models = Phase 7 champions, reloaded from MLflow
+(time: logreg run 5561385b; stratified: xgb_u run 15a37803). No retuning, no re-selection.
+- Halves: time = chronological (earlier valid_cal / later valid_thr); stratified = stratified
+  50/50, seed 42. Time halves: valid_cal 28,372 rows / 24 fraud (WARNING: < 30),
+  valid_thr 28,373 / 33. Stratified: 47 / 47 fraud.
+- Calibrators: CalibratedClassifierCV(FrozenEstimator(model), method) fitted on valid_cal.
+  sklearn 1.9 ensemble="auto" -> ONE calibrator on all valid_cal predictions (replaces the old
+  v1 code's 5-fold averaged isotonic ensemble). Model weights never refitted (tested).
+- Selection rule applied = evaluation.md v2 addendum: lowest Brier on valid_thr; if within 5%
+  of 'none' -> 'none'. Exactly 5% counts as "within" (float-safe comparison).
+  DOC CONFLICT: evaluation.md also still says "Isotonic on valid_cal. Keep only if Brier
+  improves". Under that older rule the STRATIFIED result would be isotonic (3.8% better);
+  the time result is the same under both rules. Needs KING confirmation.
+- t_block rule includes ">= 5 true positives" (evaluation.md addendum).
+- Threshold handling when recall 0.85 is unreachable: evaluation.md threshold rule ("if none
+  qualifies, choose max-recall threshold and document") — no grid change, no relaxing.
+
+### TIME split (headline) — tuned logreg
+- Brier valid_thr: none 0.000855, sigmoid 0.000290, isotonic 0.000266 (-68.9% vs none)
+  -> ISOTONIC selected.
+- t_review = 0.02 — recall 0.8485 (28/33), precision 0.3457, expected cost €541.16,
+  2.85 alerts/1k. **recall >= 0.85 NOT achievable on the 0.01-0.95 grid**: max recall on the
+  grid is 0.8485 (29 of 33 needed); 5 of 33 valid_thr frauds score below 0.01.
+  Chosen by the documented fallback (max recall, then min cost); met_target = false.
+- t_block = 0.23 — precision 0.9643 (27 TP, 1 FP), recall 0.8182. **precision >= 0.90 achievable.**
+- Tiers on valid_thr: HIGH/HOLD 28 rows (27 fraud), MEDIUM/REVIEW 53 rows (1 fraud),
+  LOW/APPROVE 28,292 rows (5 fraud). The REVIEW band is almost all false positives.
+- Stability (200 resamples, report only): t_review median 0.02, IQR [0.02, 0.34], target met
+  in 45.5% of resamples; t_block median 0.23, IQR [0.23, 0.23], exists in 100%.
+- Cost sensitivity: t_review stays 0.02 at €2 / €5 / €20 (cost €298.16 / €541.16 / €1,756.16).
+
+### STRATIFIED split — tuned xgb_u
+- Brier valid_thr: none 0.000306, sigmoid 0.000305, isotonic 0.000294 (-3.8% vs none,
+  within 5%) -> NONE selected.
+- t_review = 0.06 — recall 0.9149 (43/47), precision 0.8431, expected cost €1,521.53,
+  1.80 alerts/1k. **recall >= 0.85 achieved** (met_target = true).
+- t_block = 0.22 — precision 0.9111 (41 TP, 4 FP), recall 0.8723. **precision >= 0.90 achievable.**
+- Tiers on valid_thr: HIGH 45 rows (41 fraud), MEDIUM 6 (2), LOW 28,322 (4).
+- Stability: t_review median 0.06, IQR [0.06, 0.22], target met in 93.5%; t_block median 0.22,
+  IQR [0.09, 0.41], exists in 92%.
+- Cost sensitivity: t_review stays 0.06 at €2 / €5 / €20 (€1,368.53 / €1,521.53 / €2,286.53).
+
+### Artifacts & housekeeping
+- models/final_model_time.joblib = isotonic-calibrated tuned logreg;
+  models/final_model_stratified.joblib = uncalibrated tuned xgb_u. Both overwrite the v1 files
+  (which were built with the pre-v2 rules and a non-champion model); git history keeps v1.
+- Overwritten v1 Phase 8 outputs: frozen_threshold_*, threshold_table_*, cost_sensitivity_*,
+  valid_subsplit_indices_* (now compact JSON), reliability_*.png, cost_vs_threshold_*.png.
+  New: calibration_{split}.json, src/fraud_detection/policy.py.
+- calibrate.py rewritten for v2; its 3 old ruff errors are gone. `ruff check .` passes on the
+  whole repo; pytest 155 passed.
+
+### Open for KING before Phase 9 pre-registration
+- TIME t_review misses recall 0.85 by one fraud on valid_thr (0.8485). Documented fallback
+  applied; accept as-is, or decide a grid change (would be a protocol change -> log here).
+- Confirm the calibration-rule conflict resolution (v2 addendum used).
+- valid_cal (time) has 24 frauds (< 30): the isotonic map is fitted on few positives.

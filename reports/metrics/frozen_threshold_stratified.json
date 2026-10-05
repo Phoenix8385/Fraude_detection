@@ -1,20 +1,85 @@
 {
   "split": "stratified",
-  "threshold": 0.01,
-  "recall": 0.9148936170212766,
-  "precision": 0.7413793103448276,
-  "f1": 0.819047619047619,
-  "expected_cost": 1556.53,
-  "met_target": true,
-  "rule": "min expected_cost s.t. recall >= 0.85",
-  "target_recall": 0.85,
-  "alerts_per_1000": 2.0441969478024884,
-  "model": "xgb",
-  "mlflow_run_id": "7add1a3966da40feae2da4fd7f3f1b24",
-  "calibration_kept": true,
-  "calibration_method": "FrozenEstimator + CalibratedClassifierCV(method='isotonic', cv=5-fold)",
-  "brier_raw": 0.00033744159736670554,
-  "brier_calibrated": 0.0003205699158104513,
-  "valid_cal_rows": 28372,
-  "valid_thr_rows": 28373
+  "model": "xgb_u",
+  "mlflow_run_id": "15a37803c60b4c11b7f6e02007e6ff38",
+  "calibration": "none",
+  "chosen_on": "valid_thr",
+  "valid_thr_rows": 28373,
+  "valid_thr_fraud": 47,
+  "review_cost": 5.0,
+  "t_review": {
+    "threshold": 0.06,
+    "recall": 0.9148936170212766,
+    "precision": 0.8431372549019608,
+    "f1": 0.8775510204081632,
+    "alerts_per_1000": 1.7974835230677053,
+    "tp": 43.0,
+    "fp": 8.0,
+    "fn": 4.0,
+    "fraud_amount_caught_pct": 80.87832319020221,
+    "expected_cost": 1521.53,
+    "met_target": true,
+    "target_recall": 0.85,
+    "rule": "min expected_cost s.t. recall >= 0.85"
+  },
+  "t_block": {
+    "exists": true,
+    "threshold": 0.22,
+    "recall": 0.8723404255319149,
+    "precision": 0.9111111111111111,
+    "f1": 0.891304347826087,
+    "alerts_per_1000": 1.586014873295034,
+    "tp": 41.0,
+    "fp": 4.0,
+    "fn": 6.0,
+    "fraud_amount_caught_pct": 77.28114766597267,
+    "expected_cost": 1729.79,
+    "rule": "smallest threshold with precision >= 0.9 and tp >= 5"
+  },
+  "tiers_valid_thr": {
+    "HIGH": {
+      "action": "HOLD",
+      "rows": 45,
+      "fraud": 41,
+      "per_1000": 1.586014873295034
+    },
+    "MEDIUM": {
+      "action": "REVIEW",
+      "rows": 6,
+      "fraud": 2,
+      "per_1000": 0.21146864977267119
+    },
+    "LOW": {
+      "action": "APPROVE",
+      "rows": 28322,
+      "fraud": 4,
+      "per_1000": 998.2025164769323
+    }
+  },
+  "grid_diagnostics": {
+    "grid": "0.01-0.95 step 0.01",
+    "max_recall_on_grid": 0.9148936170212766,
+    "max_precision_on_grid": 0.9512195121951219,
+    "fraud_scored_below_grid_min": 4,
+    "fraud_total": 47
+  },
+  "threshold_stability": {
+    "n_resamples": 200,
+    "seed": 42,
+    "t_review": {
+      "median": 0.06,
+      "q25": 0.06,
+      "q75": 0.22,
+      "share_met_target": 0.935
+    },
+    "t_block": {
+      "spread": {
+        "median": 0.22,
+        "q25": 0.09,
+        "q75": 0.41
+      },
+      "share_exists": 0.92
+    }
+  },
+  "warnings": []
 }

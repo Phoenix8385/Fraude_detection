@@ -1,0 +1,25 @@
+{
+  "model": "logreg",
+  "split": "time",
+  "best_params": {
+    "C": 0.0008018640159241785,
+    "class_weight": null
+  },
+  "best_trial": 42,
+  "cv": "TimeSeriesSplit",
+  "cv_folds": 5,
+  "n_trials": 50,
+  "sampler": "TPESampler(seed=42)",
+  "cv_pr_auc_mean": 0.7695293981524987,
+  "cv_pr_auc_std": 0.0763430568601385,
+  "cv_pr_auc_folds": [
+    0.8641950578416823,
+    0.731863740292013,
+    0.683097525253599,
+    0.710565497310399,
+    0.8579251700648005
+  ],
+  "valid_pr_auc": 0.7759437027207857,
+  "search_seconds": 60.8,
+  "mlflow_run_id": "5561385ba3144bf9ae85f73d7e56d43c"
+}

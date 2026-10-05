@@ -1,26 +1,27 @@
 """Tests for fraud_detection.tune (tiny synthetic data, no MLflow)."""
 
-from pathlib import Path
-
 import numpy as np
+import optuna
 import pandas as pd
 import pytest
 from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit
 
 from fraud_detection.features import MODEL_FEATURES
-from fraud_detection.models import build_model
 from fraud_detection.schema import TARGET
 from fraud_detection.tune import (
-    SEARCH_SPACE,
-    best_params_unprefixed,
+    BASELINE_TRIALS,
+    TUNED_MODELS,
+    build_tuned,
+    cv_pr_auc,
     make_cv,
-    pipeline_space,
-    search,
-    summary_markdown,
-    untuned_valid_pr_auc,
+    run_study,
+    suggest_params,
 )
 
-TINY_SPACE = {"n_estimators": [5, 10], "max_depth": [2, 3]}
+TINY_XGB = {
+    "n_estimators": 10, "max_depth": 2, "learning_rate": 0.1, "subsample": 1.0,
+    "colsample_bytree": 1.0, "min_child_weight": 1.0, "reg_lambda": 1.0,
+}  # fmt: skip
 
 
 @pytest.fixture
@@ -30,6 +31,7 @@ def tune_df() -> pd.DataFrame:
     n = 400
     df = pd.DataFrame(rng.normal(size=(n, len(MODEL_FEATURES))), columns=MODEL_FEATURES)
     df["Time"] = rng.permutation(np.arange(n, dtype="float64"))
+    df["Amount"] = rng.uniform(1, 100, size=n)
     y = np.zeros(n, dtype=int)
     y[::10] = 1
     df[TARGET] = y
@@ -37,73 +39,87 @@ def tune_df() -> pd.DataFrame:
     return df
 
 
-def test_pipeline_space_prefixes_and_matches_pipeline() -> None:
-    space = pipeline_space()
-    assert set(space) == {f"model__{k}" for k in SEARCH_SPACE}
-    # every key must be a real parameter of the pipeline (set_params raises otherwise)
-    pipe = build_model("xgb", {"random_state": 0})
-    pipe.set_params(**{k: v[0] for k, v in space.items()})
+@pytest.fixture(autouse=True)
+def quiet_optuna() -> None:
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+
+@pytest.mark.parametrize("model_key", TUNED_MODELS)
+def test_suggested_params_build_a_valid_pipeline(model_key: str) -> None:
+    trial = optuna.create_study(sampler=optuna.samplers.RandomSampler(seed=0)).ask()
+    params = suggest_params(trial, model_key)
+    y = pd.Series([0] * 9 + [1])
+    build_tuned(model_key, params, y, seed=0)  # set_params raises on unknown names
+
+
+def test_baseline_trials_match_search_space() -> None:
+    for model_key, trials in BASELINE_TRIALS.items():
+        trial = optuna.create_study(sampler=optuna.samplers.RandomSampler(seed=0)).ask()
+        assert all(set(t) == set(suggest_params(trial, model_key)) for t in trials)
+
+
+@pytest.mark.parametrize(("u", "expected"), [(0.0, 1.0), (1.0, 9.0), (0.5, 3.0)])
+def test_xgb_u_weight_is_ratio_to_the_power_u(u: float, expected: float) -> None:
+    y = pd.Series([0] * 9 + [1])  # 9 legit / 1 fraud
+    model = build_tuned("xgb_u", {**TINY_XGB, "u": u}, y, seed=0)
+    xgb = model.named_steps["model"]
+    assert xgb.get_params()["scale_pos_weight"] == pytest.approx(expected)
+    assert "u" not in xgb.get_params()
+
+
+def test_logreg_class_weight_can_be_none() -> None:
+    model = build_tuned("logreg", {"C": 0.5, "class_weight": None}, pd.Series([0, 1]), seed=0)
+    lr = model.named_steps["model"]
+    assert lr.C == 0.5 and lr.class_weight is None
+
+
+def test_unknown_model_rejected() -> None:
+    with pytest.raises(ValueError, match="unknown tuned model"):
+        build_tuned("iforest", {}, pd.Series([0, 1]), seed=0)
 
 
 def test_make_cv_types() -> None:
-    assert isinstance(make_cv("time", 42), TimeSeriesSplit)
-    cv = make_cv("stratified", 42)
+    assert isinstance(make_cv("time", 42, 5), TimeSeriesSplit)
+    cv = make_cv("stratified", 42, 5)
     assert isinstance(cv, StratifiedKFold) and cv.shuffle and cv.random_state == 42
 
 
-def test_search_returns_params_from_space(tune_df: pd.DataFrame) -> None:
-    s = search("xgb", tune_df, "stratified", seed=0, n_iter=3, n_splits=3, space=TINY_SPACE)
-    best = best_params_unprefixed(s)
-    assert set(best) == set(TINY_SPACE)
-    for key, value in best.items():
-        assert value in TINY_SPACE[key]
-    assert s.scoring == "average_precision"
-    assert s.best_estimator_.predict_proba(tune_df[MODEL_FEATURES]).shape == (len(tune_df), 2)
+def test_time_cv_never_trains_on_later_rows(tune_df: pd.DataFrame) -> None:
+    ordered = tune_df.sort_values("Time", kind="stable")
+    for fit_idx, hold_idx in make_cv("time", 0, 3).split(ordered):
+        assert ordered["Time"].iloc[fit_idx].max() < ordered["Time"].iloc[hold_idx].min()
 
 
-def test_time_search_sorts_rows_by_time(tune_df: pd.DataFrame) -> None:
-    s = search("xgb_weighted", tune_df, "time", seed=0, n_iter=2, n_splits=3, space=TINY_SPACE)
-    assert isinstance(s.cv, TimeSeriesSplit)
-    # the weight was computed from the train labels: 360 legit / 40 fraud
-    assert s.best_estimator_.named_steps["model"].get_params()["scale_pos_weight"] == 9.0
+def test_xgb_u_weight_uses_fold_labels_only(
+    tune_df: pd.DataFrame, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each fold's weight comes from that fold's training rows, never the whole train part."""
+    import fraud_detection.tune as tune
+
+    seen: list[int] = []
+    original = tune.build_tuned
+
+    def spy(model_key, params, y_fit, seed):  # noqa: ANN001, ANN202
+        seen.append(len(y_fit))
+        return original(model_key, params, y_fit, seed)
+
+    monkeypatch.setattr(tune, "build_tuned", spy)
+    cv_pr_auc("xgb_u", {**TINY_XGB, "u": 1.0}, tune_df, "stratified", seed=0, n_splits=4)
+    assert seen == [300, 300, 300, 300]  # 3/4 of 400 rows per fold, not 400
 
 
-def test_search_is_deterministic(tune_df: pd.DataFrame) -> None:
-    a = search("xgb", tune_df, "stratified", seed=1, n_iter=3, n_splits=3, space=TINY_SPACE)
-    b = search("xgb", tune_df, "stratified", seed=1, n_iter=3, n_splits=3, space=TINY_SPACE)
-    assert a.best_params_ == b.best_params_
-    scores_a, scores_b = a.cv_results_["mean_test_score"], b.cv_results_["mean_test_score"]
-    np.testing.assert_array_equal(scores_a, scores_b)
+def test_cv_scores_are_pr_auc_per_fold(tune_df: pd.DataFrame) -> None:
+    scores = cv_pr_auc("logreg", {"C": 1.0, "class_weight": "balanced"}, tune_df,
+                       "stratified", seed=0, n_splits=3)  # fmt: skip
+    assert len(scores) == 3
+    assert all(0.0 <= s <= 1.0 for s in scores)
 
 
-def test_search_rejects_non_xgb(tune_df: pd.DataFrame) -> None:
-    with pytest.raises(ValueError, match="XGBoost models only"):
-        search("logreg", tune_df, "stratified", seed=0)
-
-
-def test_untuned_lookup_uses_latest_row(tmp_path: Path) -> None:
-    csv = tmp_path / "experiments.csv"
-    pd.DataFrame(
-        {
-            "timestamp": ["2026-01-01", "2026-01-02", "2026-01-02"],
-            "model": ["xgb", "xgb", "xgb_tuned"],
-            "split": ["time", "time", "time"],
-            "pr_auc": [0.5, 0.78, 0.99],
-        }
-    ).to_csv(csv, index=False)
-    assert untuned_valid_pr_auc("xgb", "time", csv) == 0.78
-    assert untuned_valid_pr_auc("xgb", "stratified", csv) is None
-    assert untuned_valid_pr_auc("xgb", "time", tmp_path / "missing.csv") is None
-
-
-def test_summary_markdown_change_column() -> None:
-    md = summary_markdown(
-        [
-            {
-                "model": "xgb", "split": "time", "cv": "TimeSeriesSplit",
-                "cv_pr_auc_mean": 0.7, "cv_pr_auc_std": 0.05,
-                "valid_pr_auc_untuned": 0.78, "valid_pr_auc_tuned": 0.80,
-            }
-        ]
-    )  # fmt: skip
-    assert "| xgb | time | TimeSeriesSplit | 0.7000 ± 0.0500 | 0.7800 | 0.8000 | +0.0200 |" in md
+def test_study_enqueues_baselines_and_is_deterministic(tune_df: pd.DataFrame) -> None:
+    a = run_study("xgb_u", tune_df, "time", seed=1, n_trials=3, n_splits=3)
+    b = run_study("xgb_u", tune_df, "time", seed=1, n_trials=3, n_splits=3)
+    # first two trials are the Phase 6 configs: xgb_weighted (u=1) then plain xgb (u=0)
+    assert [t.params["u"] for t in a.trials[:2]] == [1.0, 0.0]
+    assert a.best_params == b.best_params
+    assert [t.value for t in a.trials] == [t.value for t in b.trials]
+    assert len(a.best_trial.user_attrs["cv_scores"]) == 3

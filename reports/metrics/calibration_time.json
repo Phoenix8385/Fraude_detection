@@ -1,0 +1,29 @@
+{
+  "split": "time",
+  "model": "logreg",
+  "mlflow_run_id": "5561385ba3144bf9ae85f73d7e56d43c",
+  "halves": {
+    "valid_cal": {
+      "rows": 28372,
+      "fraud": 24,
+      "time_min": 120394.0,
+      "time_max": 132906.0
+    },
+    "valid_thr": {
+      "rows": 28373,
+      "fraud": 33,
+      "time_min": 132906.0,
+      "time_max": 145234.0
+    }
+  },
+  "brier_valid_thr": {
+    "none": 0.0008549215062128336,
+    "sigmoid": 0.00028979134834472553,
+    "isotonic": 0.00026591904403598334
+  },
+  "selected": "isotonic",
+  "lowest_brier": "isotonic",
+  "relative_improvement_vs_none": 0.688955018556075,
+  "rule": "lowest Brier on valid_thr; within 5% of 'none' -> 'none'",
+  "fit": "CalibratedClassifierCV(FrozenEstimator(model), method) on valid_cal"
+}

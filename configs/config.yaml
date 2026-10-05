@@ -21,3 +21,25 @@ costs:
   missed_fraud_cost: amount      # a missed fraud costs its transaction Amount
 
 target_recall: 0.85
+
+# Phase 7 — hyperparameter search (Optuna, CV on TRAIN only)
+tuning:
+  n_trials: 50
+  cv_folds: 5
+
+# Phase 7+ — uncertainty (docs/evaluation.md, "Uncertainty"). Resampling seed = seed above.
+bootstrap:
+  n_resamples: 1000
+  ci_level: 0.95
+
+# Phase 7 — refit the tuned configs with each seed to measure seed-to-seed noise
+stability_seeds: [42, 43, 44, 45, 46]
+
+# Phase 8 — calibration and two-threshold policy (docs/evaluation.md addendum)
+calibration:
+  none_tolerance: 0.05      # keep 'none' unless the best calibrator beats its Brier by > 5%
+  min_half_positives: 30    # warn if valid_cal or valid_thr has fewer frauds than this
+policy:
+  block_precision: 0.90     # t_block: smallest threshold with precision >= this ...
+  block_min_tp: 5           # ... and at least this many true positives above it
+  stability_resamples: 200  # bootstrap resamples for threshold stability (report only)

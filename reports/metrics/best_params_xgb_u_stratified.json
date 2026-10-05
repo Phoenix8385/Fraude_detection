@@ -1,0 +1,32 @@
+{
+  "model": "xgb_u",
+  "split": "stratified",
+  "best_params": {
+    "n_estimators": 700,
+    "max_depth": 7,
+    "learning_rate": 0.040740073908212014,
+    "subsample": 0.5780186014130883,
+    "colsample_bytree": 0.6162964308980763,
+    "min_child_weight": 1.369110516403019,
+    "reg_lambda": 0.8725271507530034,
+    "u": 0.9272716828723924
+  },
+  "best_trial": 32,
+  "cv": "StratifiedKFold",
+  "cv_folds": 5,
+  "n_trials": 50,
+  "sampler": "TPESampler(seed=42)",
+  "cv_pr_auc_mean": 0.8520485693556543,
+  "cv_pr_auc_std": 0.06950010944909785,
+  "cv_pr_auc_folds": [
+    0.7154996833288628,
+    0.8759393144324789,
+    0.9078026983558014,
+    0.8703171598145956,
+    0.8906839908465327
+  ],
+  "valid_pr_auc": 0.8848375790075127,
+  "search_seconds": 1359.6,
+  "mlflow_run_id": "15a37803c60b4c11b7f6e02007e6ff38",
+  "scale_pos_weight": 375.8706855232306
+}

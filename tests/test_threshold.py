@@ -7,9 +7,11 @@ import pytest
 
 from fraud_detection.threshold import (
     DEFAULT_GRID,
+    choose_block_threshold,
     choose_threshold,
     cost_sensitivity,
     plot_cost_curve,
+    threshold_stability,
     threshold_table,
 )
 
@@ -97,3 +99,44 @@ def test_plot_cost_curve_writes_file(table, tmp_path: Path) -> None:  # type: ig
     out = tmp_path / "cost.png"
     plot_cost_curve(table, choose_threshold(table, 0.85), "test", out)
     assert out.exists() and out.stat().st_size > 0
+
+
+# t_block on the same table. precision per threshold (TP / alerts):
+#   t     0.1   0.2  0.3  0.4  0.5   0.6   0.7  0.8  0.9
+#   prec  .375  .50  .60  .50  .667  .667  .50  .50  1.0   (TP 3,3,3,2,2,2,1,1,1)
+# Precision is NOT monotonic in the threshold, so "smallest qualifying" matters.
+
+
+@pytest.mark.parametrize(
+    ("min_precision", "min_tp", "expected"),
+    [
+        (0.90, 1, 0.9),  # only 0.9 reaches precision 0.90
+        (0.60, 3, 0.3),  # 0.3 qualifies and is the smallest that does
+        (0.65, 2, 0.5),  # 0.3 fails precision; 0.5 is the smallest that passes
+    ],
+)
+def test_block_threshold_hand_computed(table, min_precision, min_tp, expected) -> None:  # type: ignore[no-untyped-def]
+    b = choose_block_threshold(table, min_precision, min_tp)
+    assert b["exists"] is True
+    assert b["threshold"] == pytest.approx(expected)
+    assert b["precision"] >= min_precision and b["tp"] >= min_tp
+
+
+def test_block_threshold_does_not_exist_when_tp_floor_unmet(table) -> None:  # type: ignore[no-untyped-def]
+    # precision 0.90 only at 0.9, which has 1 TP: with min_tp 2 nothing qualifies, no relaxing
+    b = choose_block_threshold(table, 0.90, 2)
+    assert b["exists"] is False and b["threshold"] is None
+    assert set(b) == {"exists", "threshold", "rule"}
+    assert "tp >= 2" in b["rule"]
+
+
+def test_threshold_stability_is_reproducible_and_bounded() -> None:
+    y, p, amt = Y * 5, P * 5, AMOUNTS * 5
+    kw = {"review_cost": 100, "target_recall": 0.85, "block_precision": 0.9,
+          "block_min_tp": 1, "n_resamples": 30, "seed": 3, "grid": GRID}  # fmt: skip
+    a = threshold_stability(y, p, amt, **kw)
+    assert a == threshold_stability(y, p, amt, **kw)
+    r = a["t_review"]
+    assert 0.1 <= r["q25"] <= r["median"] <= r["q75"] <= 0.9
+    assert 0.0 <= r["share_met_target"] <= 1.0
+    assert 0.0 <= a["t_block"]["share_exists"] <= 1.0 and a["n_resamples"] == 30

@@ -1,0 +1,178 @@
+{
+  "split": "stratified",
+  "valid_rows": 56745,
+  "valid_fraud": 94,
+  "bootstrap": {
+    "n_resamples": 1000,
+    "ci_level": 0.95,
+    "seed": 42,
+    "stratified": true
+  },
+  "models": {
+    "xgb_u": {
+      "best_params": {
+        "n_estimators": 700,
+        "max_depth": 7,
+        "learning_rate": 0.040740073908212014,
+        "subsample": 0.5780186014130883,
+        "colsample_bytree": 0.6162964308980763,
+        "min_child_weight": 1.369110516403019,
+        "reg_lambda": 0.8725271507530034,
+        "u": 0.9272716828723924
+      },
+      "scale_pos_weight": 375.8706855232306,
+      "cv_pr_auc_mean": 0.8520485693556543,
+      "cv_pr_auc_std": 0.06950010944909785,
+      "valid": {
+        "pr_auc": {
+          "point": 0.8848375790075127,
+          "ci_low": 0.8232175153392006,
+          "ci_high": 0.9461343249839634
+        },
+        "recall": {
+          "point": 0.8829787234042553,
+          "ci_low": 0.8191489361702128,
+          "ci_high": 0.9468085106382979
+        },
+        "precision": {
+          "point": 0.8383838383838383,
+          "ci_low": 0.7699115044247787,
+          "ci_high": 0.9111355311355311
+        },
+        "alerts_per_1000": {
+          "point": 1.7446471054718478,
+          "ci_low": 1.568420125121156,
+          "ci_high": 1.9208740858225395
+        },
+        "expected_cost": {
+          "point": 2179.88,
+          "ci_low": 874.0567500000001,
+          "ci_high": 3831.917499999999
+        }
+      },
+      "operating_point": {
+        "threshold": 0.07,
+        "recall": 0.8829787234042553,
+        "precision": 0.8383838383838383,
+        "alerts_per_1000": 1.7446471054718478,
+        "expected_cost": 2179.88,
+        "tp": 83.0,
+        "fp": 16.0,
+        "fn": 11.0,
+        "met_target": true,
+        "rule": "min expected_cost s.t. recall >= 0.85"
+      },
+      "seed_stability": {
+        "seeds": [
+          42,
+          43,
+          44,
+          45,
+          46
+        ],
+        "valid_pr_auc": [
+          0.8848375790075127,
+          0.8829006495775136,
+          0.8832929313459429,
+          0.883551354657159,
+          0.8805639716754443
+        ],
+        "mean": 0.8830292972527145,
+        "std": 0.0015577475886404757
+      },
+      "mlflow_run_id": "15a37803c60b4c11b7f6e02007e6ff38"
+    },
+    "logreg": {
+      "best_params": {
+        "C": 0.0006966154543618859,
+        "class_weight": null
+      },
+      "cv_pr_auc_mean": 0.7429783768229723,
+      "cv_pr_auc_std": 0.06101299002699275,
+      "valid": {
+        "pr_auc": {
+          "point": 0.7832002220070323,
+          "ci_low": 0.69604056061676,
+          "ci_high": 0.8684996737705071
+        },
+        "recall": {
+          "point": 0.8617021276595744,
+          "ci_low": 0.7872340425531915,
+          "ci_high": 0.925531914893617
+        },
+        "precision": {
+          "point": 0.75,
+          "ci_low": 0.682232370433305,
+          "ci_high": 0.8236044417767105
+        },
+        "alerts_per_1000": {
+          "point": 1.9032513877874702,
+          "ci_low": 1.674156313331571,
+          "ci_high": 2.1147237642083003
+        },
+        "expected_cost": {
+          "point": 2463.1400000000003,
+          "ci_low": 1027.3622500000004,
+          "ci_high": 4162.022249999998
+        }
+      },
+      "operating_point": {
+        "threshold": 0.01,
+        "recall": 0.8617021276595744,
+        "precision": 0.75,
+        "alerts_per_1000": 1.9032513877874702,
+        "expected_cost": 2463.1400000000003,
+        "tp": 81.0,
+        "fp": 27.0,
+        "fn": 13.0,
+        "met_target": true,
+        "rule": "min expected_cost s.t. recall >= 0.85"
+      },
+      "seed_stability": {
+        "seeds": [
+          42,
+          43,
+          44,
+          45,
+          46
+        ],
+        "valid_pr_auc": [
+          0.7832002220070323,
+          0.7832002220070323,
+          0.7832002220070323,
+          0.7832002220070323,
+          0.7832002220070323
+        ],
+        "mean": 0.7832002220070323,
+        "std": 0.0
+      },
+      "mlflow_run_id": "6413430fe6974b6883df422576853af3"
+    }
+  },
+  "paired_pr_auc": {
+    "metric": "pr_auc",
+    "a": "xgb_u",
+    "b": "logreg",
+    "diff": 0.10163735700048038,
+    "ci_low": 0.04328316148054437,
+    "ci_high": 0.15716789175964024,
+    "ci_level": 0.95,
+    "prob_a_better": 1.0,
+    "ci_includes_zero": false,
+    "n_resamples": 1000
+  },
+  "decision": {
+    "champion": "xgb_u",
+    "step": "rule",
+    "reason": "highest tuned validation PR-AUC; paired 95% CI of the difference vs tuned LR excludes 0"
+  },
+  "untuned_valid_pr_auc_reference": {
+    "logreg": 0.7881784154723811,
+    "xgb": 0.8898815275443924,
+    "xgb_weighted": 0.8887925609535987
+  },
+  "notes": [
+    "Operating points are chosen and reported on the same validation rows (optimistic); used only for tie-break 1. Phase 8 re-selects thresholds on valid_thr.",
+    "Threshold grid is 0.01-0.95 (threshold.py); met_target=false means no grid threshold reaches the recall target."
+  ]
+}

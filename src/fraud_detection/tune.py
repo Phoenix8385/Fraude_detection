@@ -1,10 +1,17 @@
-"""Hyperparameter tuning: RandomizedSearchCV on the TRAIN part only, scored by PR-AUC.
+"""Hyperparameter tuning with Optuna: cross-validation on the TRAIN part only, scored by PR-AUC.
 
-Cross-validation happens inside TRAIN; VALIDATION is used once afterwards to score the
-refitted best model (same protocol as Phase 6, so tuned vs untuned is comparable).
-The test split is never read.
+Two models are tuned (docs/evaluation.md, "Champion rule"):
+- "xgb_u": XGBoost whose class weight is scale_pos_weight = (n_legit / n_fraud) ** u.
+  u is searched in [0, 1]: u = 0 is plain XGBoost, u = 1 is the Phase 6 "xgb_weighted".
+  The ratio is recomputed from each CV fold's own training rows, so held-out fold labels
+  never influence the weight.
+- "logreg": scaled Logistic Regression; C and class_weight are searched.
 
-    python -m fraud_detection.tune --models xgb_weighted xgb --splits stratified time
+The Phase 5/6 untuned configurations are enqueued as the first trials, so the search
+always evaluates them. VALIDATION is used once afterwards, to score the refitted best
+model. The test split is never read.
+
+    python -m fraud_detection.tune --models xgb_u logreg --splits stratified time
 """
 
 from __future__ import annotations
@@ -17,17 +24,16 @@ import time
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+import optuna
 import pandas as pd
-from sklearn.model_selection import (
-    BaseCrossValidator,
-    RandomizedSearchCV,
-    StratifiedKFold,
-    TimeSeriesSplit,
-)
+from imblearn.pipeline import Pipeline
+from sklearn.model_selection import BaseCrossValidator, StratifiedKFold, TimeSeriesSplit
 
 from fraud_detection.config import Config, load_config
 from fraud_detection.features import MODEL_FEATURES
-from fraud_detection.models import XGB_NAMES, build_model
+from fraud_detection.metrics import compute_metrics
+from fraud_detection.models import XGB_BASE_PARAMS, build_model
 from fraud_detection.schema import TARGET
 from fraud_detection.train import (
     SPLIT_NAMES,
@@ -39,29 +45,64 @@ from fraud_detection.train import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODELS: tuple[str, ...] = ("xgb_weighted", "xgb")  # top-2 tunable in Phase 6
-N_FOLDS = 5
-N_ITER = 20
+TUNED_MODELS: tuple[str, ...] = ("xgb_u", "logreg")
 
-# Unprefixed XGBoost parameter grid. Every model is a Pipeline whose estimator step is
-# called "model", so each key becomes "model__<name>" for the search.
-SEARCH_SPACE: dict[str, list[Any]] = {
-    "n_estimators": [200, 400, 700],
-    "max_depth": [3, 4, 5, 6, 7],
-    "learning_rate": [0.02, 0.05, 0.1],
-    "subsample": [0.7, 0.8, 1.0],
-    "colsample_bytree": [0.6, 0.8, 1.0],
-    "min_child_weight": [1, 3, 5],
-}
-
-
-def pipeline_space(space: dict[str, list[Any]] = SEARCH_SPACE) -> dict[str, list[Any]]:
-    """Prefix parameter names with the pipeline step name ("model__")."""
-    return {f"model__{name}": values for name, values in space.items()}
+# Untuned Phase 5/6 configurations, evaluated first in every study.
+BASELINE_TRIALS: dict[str, list[dict[str, Any]]] = {
+    "xgb_u": [
+        {
+            **{k: XGB_BASE_PARAMS[k] for k in
+               ("n_estimators", "max_depth", "learning_rate", "subsample", "colsample_bytree")},
+            "min_child_weight": 1.0,  # XGBoost default
+            "reg_lambda": 1.0,  # XGBoost default
+            "u": u,
+        }
+        for u in (1.0, 0.0)  # Phase 6 xgb_weighted, Phase 6 plain xgb
+    ],
+    "logreg": [{"C": 1.0, "class_weight": "balanced"}],  # Phase 5 logreg
+}  # fmt: skip
 
 
-def make_cv(split_name: str, seed: int, n_splits: int = N_FOLDS) -> BaseCrossValidator:
-    """Stratified split → shuffled StratifiedKFold; time split → TimeSeriesSplit.
+def suggest_params(trial: optuna.Trial, model_key: str) -> dict[str, Any]:
+    """Search space for one model (unprefixed parameter names, plus "u" for xgb_u)."""
+    if model_key == "xgb_u":
+        return {
+            "n_estimators": trial.suggest_int("n_estimators", 100, 1000, step=50),
+            "max_depth": trial.suggest_int("max_depth", 2, 8),
+            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
+            "subsample": trial.suggest_float("subsample", 0.5, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
+            "min_child_weight": trial.suggest_float("min_child_weight", 1.0, 20.0, log=True),
+            "reg_lambda": trial.suggest_float("reg_lambda", 0.1, 10.0, log=True),
+            "u": trial.suggest_float("u", 0.0, 1.0),
+        }
+    if model_key == "logreg":
+        return {
+            "C": trial.suggest_float("C", 1e-4, 1e2, log=True),
+            "class_weight": trial.suggest_categorical("class_weight", ["balanced", None]),
+        }
+    raise ValueError(f"no search space for '{model_key}'; expected one of {TUNED_MODELS}")
+
+
+def build_tuned(model_key: str, params: dict[str, Any], y_fit: pd.Series, seed: int) -> Pipeline:
+    """Unfitted pipeline for a tuned configuration.
+
+    For xgb_u the class ratio comes from y_fit, the labels of the rows it will be fitted on.
+    """
+    if model_key == "xgb_u":
+        xgb_params = {k: v for k, v in params.items() if k != "u"}
+        spw = train_scale_pos_weight(y_fit) ** params["u"]
+        return build_model(
+            "xgb_weighted", {**xgb_params, "random_state": seed}, scale_pos_weight=spw
+        )
+    if model_key == "logreg":
+        model = build_model("logreg", {"random_state": seed, "C": params["C"]})
+        return model.set_params(model__class_weight=params["class_weight"])
+    raise ValueError(f"unknown tuned model '{model_key}'; expected one of {TUNED_MODELS}")
+
+
+def make_cv(split_name: str, seed: int, n_splits: int) -> BaseCrossValidator:
+    """Stratified split -> shuffled StratifiedKFold; time split -> TimeSeriesSplit.
 
     TimeSeriesSplit always validates on rows LATER than the ones it trains on, which
     mirrors how the time split itself was built. It requires time-ordered rows.
@@ -71,161 +112,157 @@ def make_cv(split_name: str, seed: int, n_splits: int = N_FOLDS) -> BaseCrossVal
     return StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
 
 
-def search(
-    model_name: str,
+def cv_pr_auc(
+    model_key: str,
+    params: dict[str, Any],
     train: pd.DataFrame,
     split_name: str,
     seed: int,
-    n_iter: int = N_ITER,
-    n_splits: int = N_FOLDS,
-    space: dict[str, list[Any]] = SEARCH_SPACE,
-) -> RandomizedSearchCV:
-    """Run the randomized search on TRAIN rows and refit the best params on all of TRAIN."""
-    if model_name not in XGB_NAMES:
-        raise ValueError(f"tuning is defined for XGBoost models only, got '{model_name}'")
+    n_splits: int,
+) -> list[float]:
+    """PR-AUC on each CV fold of TRAIN for one configuration."""
     if split_name == "time":
         train = train.sort_values("Time", kind="stable")  # TimeSeriesSplit needs time order
-    X, y = train[MODEL_FEATURES], train[TARGET]
+    X, y, amounts = train[MODEL_FEATURES], train[TARGET], train["Amount"]
+    scores = []
+    for fit_idx, hold_idx in make_cv(split_name, seed, n_splits).split(X, y):
+        model = build_tuned(model_key, params, y.iloc[fit_idx], seed)
+        model.fit(X.iloc[fit_idx], y.iloc[fit_idx])
+        proba = model.predict_proba(X.iloc[hold_idx])[:, 1]
+        # pr_auc is threshold-free; threshold and review cost do not affect it
+        m = compute_metrics(y.iloc[hold_idx], proba, 0.5, amounts.iloc[hold_idx], 0.0)
+        scores.append(m["pr_auc"])
+    return scores
 
-    # For xgb_weighted the weight comes from the full TRAIN part (see memory.md caveat).
-    spw = train_scale_pos_weight(y) if model_name == "xgb_weighted" else None
-    pipeline = build_model(model_name, {"random_state": seed}, scale_pos_weight=spw)
 
-    searcher = RandomizedSearchCV(
-        pipeline,
-        param_distributions=pipeline_space(space),
-        n_iter=n_iter,
-        scoring="average_precision",
-        cv=make_cv(split_name, seed, n_splits),
-        random_state=seed,
-        refit=True,  # refit best params on the whole TRAIN part
-        n_jobs=1,  # XGBoost already uses all cores
-        error_score="raise",
+def run_study(
+    model_key: str,
+    train: pd.DataFrame,
+    split_name: str,
+    seed: int,
+    n_trials: int,
+    n_splits: int,
+) -> optuna.Study:
+    """Maximise mean CV PR-AUC on TRAIN with a seeded TPE sampler."""
+    study = optuna.create_study(
+        direction="maximize",
+        sampler=optuna.samplers.TPESampler(seed=seed),
+        study_name=f"{model_key}_{split_name}",
     )
-    searcher.fit(X, y)
-    return searcher
+    for params in BASELINE_TRIALS[model_key][:n_trials]:
+        study.enqueue_trial(params)
 
+    def objective(trial: optuna.Trial) -> float:
+        params = suggest_params(trial, model_key)
+        scores = cv_pr_auc(model_key, params, train, split_name, seed, n_splits)
+        trial.set_user_attr("cv_scores", scores)
+        trial.set_user_attr("cv_std", float(np.std(scores)))
+        return float(np.mean(scores))
 
-def best_params_unprefixed(searcher: RandomizedSearchCV) -> dict[str, Any]:
-    """best_params_ without the "model__" prefix, e.g. {"max_depth": 4, ...}."""
-    return {k.removeprefix("model__"): v for k, v in searcher.best_params_.items()}
+    def log_trial(study: optuna.Study, trial: optuna.trial.FrozenTrial) -> None:
+        logger.info(
+            "%s/%s trial %d/%d: cv PR-AUC %.4f (best %.4f)",
+            model_key, split_name, trial.number + 1, n_trials, trial.value, study.best_value,
+        )  # fmt: skip
 
-
-def untuned_valid_pr_auc(model_name: str, split_name: str, experiments_csv: Path) -> float | None:
-    """Latest Phase 6 (untuned) validation PR-AUC for this model/split, if recorded."""
-    if not experiments_csv.exists():
-        return None
-    df = pd.read_csv(experiments_csv)
-    rows = df[(df["model"] == model_name) & (df["split"] == split_name)]
-    return float(rows.sort_values("timestamp")["pr_auc"].iloc[-1]) if len(rows) else None
+    study.optimize(objective, n_trials=n_trials, callbacks=[log_trial])
+    return study
 
 
 def run_tuning(
-    model_name: str, split_name: str, config: Config, n_iter: int = N_ITER
+    model_key: str, split_name: str, config: Config, n_trials: int | None = None
 ) -> dict[str, Any]:
-    """Tune one model on one split, score validation, log, save best params JSON."""
+    """Tune one model on one split, refit on all of TRAIN, score VALIDATION once, save JSON."""
+    n_trials = n_trials or config.tuning.n_trials
+    n_folds = config.tuning.cv_folds
     train = load_part(split_name, "train", config.paths.processed_dir)
     valid = load_part(split_name, "valid", config.paths.processed_dir)
-    experiments_csv = config.paths.metrics_dir / "experiments.csv"
-    untuned = untuned_valid_pr_auc(model_name, split_name, experiments_csv)
 
-    logger.info(
-        "Tuning %s on %s: %d candidates x %d folds", model_name, split_name, n_iter, N_FOLDS
-    )
+    logger.info("Tuning %s on %s: %d trials x %d folds", model_key, split_name, n_trials, n_folds)
     start = time.perf_counter()
-    searcher = search(model_name, train, split_name, config.seed, n_iter=n_iter)
+    study = run_study(model_key, train, split_name, config.seed, n_trials, n_folds)
     search_seconds = time.perf_counter() - start
 
-    best = searcher.best_index_
-    cv_mean = float(searcher.cv_results_["mean_test_score"][best])
-    cv_std = float(searcher.cv_results_["std_test_score"][best])
-    params = best_params_unprefixed(searcher)
+    best = study.best_trial
+    params = dict(best.params)
+    cv_std = float(best.user_attrs["cv_std"])
+    model = build_tuned(model_key, params, train[TARGET], config.seed)
+    fit_start = time.perf_counter()
+    model.fit(train[MODEL_FEATURES], train[TARGET])
+    fit_seconds = time.perf_counter() - fit_start
 
     with tempfile.TemporaryDirectory() as tmp:
-        cv_csv = Path(tmp) / f"cv_results_{model_name}_{split_name}.csv"
-        pd.DataFrame(searcher.cv_results_).to_csv(cv_csv, index=False)
+        trials_csv = Path(tmp) / f"optuna_trials_{model_key}_{split_name}.csv"
+        study.trials_dataframe().to_csv(trials_csv, index=False)
         row = score_and_log(
-            searcher.best_estimator_,
-            f"{model_name}_tuned",
+            model,
+            f"{model_key}_tuned",
             split_name,
             train,
             valid,
-            fit_seconds=float(searcher.refit_time_),
+            fit_seconds=fit_seconds,
             config=config,
-            tags={"phase": "7", "stage": "tuned", "base_model": model_name},
+            tags={"phase": "7", "stage": "tuned", "tuner": "optuna", "base_model": model_key},
             extra_params={
-                "cv": type(searcher.cv).__name__,
-                "cv_folds": N_FOLDS,
-                "n_iter": n_iter,
-                "search_space": json.dumps(SEARCH_SPACE),
+                "cv": type(make_cv(split_name, config.seed, n_folds)).__name__,
+                "cv_folds": n_folds,
+                "n_trials": n_trials,
+                "best_params": json.dumps(params),
             },
             extra_metrics={
-                "cv_pr_auc_mean": cv_mean,
+                "cv_pr_auc_mean": float(best.value),
                 "cv_pr_auc_std": cv_std,
                 "search_seconds": search_seconds,
             },
-            artifacts=[cv_csv],
+            artifacts=[trials_csv],
         )
+        (config.paths.metrics_dir / trials_csv.name).write_bytes(trials_csv.read_bytes())
 
     result = {
-        "model": model_name,
+        "model": model_key,
         "split": split_name,
         "best_params": params,
-        "cv": type(searcher.cv).__name__,
-        "cv_folds": N_FOLDS,
-        "n_iter": n_iter,
-        "cv_pr_auc_mean": cv_mean,
+        "best_trial": best.number,
+        "cv": type(make_cv(split_name, config.seed, n_folds)).__name__,
+        "cv_folds": n_folds,
+        "n_trials": n_trials,
+        "sampler": f"TPESampler(seed={config.seed})",
+        "cv_pr_auc_mean": float(best.value),
         "cv_pr_auc_std": cv_std,
-        "valid_pr_auc_tuned": row["pr_auc"],
-        "valid_pr_auc_untuned": untuned,
+        "cv_pr_auc_folds": best.user_attrs["cv_scores"],
+        "valid_pr_auc": row["pr_auc"],
         "search_seconds": round(search_seconds, 1),
         "mlflow_run_id": row["run_id"],
     }
-    out = config.paths.metrics_dir / f"best_params_{model_name}_{split_name}.json"
+    if model_key == "xgb_u":
+        result["scale_pos_weight"] = train_scale_pos_weight(train[TARGET]) ** params["u"]
+    out = config.paths.metrics_dir / f"best_params_{model_key}_{split_name}.json"
     out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     logger.info("Saved %s", out)
     return result
 
 
-def summary_markdown(results: list[dict[str, Any]]) -> str:
-    """Tuned vs untuned validation PR-AUC table."""
-    lines = [
-        "# Tuning summary — validation PR-AUC, tuned vs untuned",
-        "",
-        "Generated by `python -m fraud_detection.tune`. CV on TRAIN only; the refitted best",
-        "model is scored once on VALIDATION. Test set not used.",
-        "",
-        "| model | split | cv | cv PR-AUC (mean ± std) | valid untuned | valid tuned | change |",
-        "|---|---|---|---|---|---|---|",
-    ]
-    for r in results:
-        untuned = r["valid_pr_auc_untuned"]
-        change = f"{r['valid_pr_auc_tuned'] - untuned:+.4f}" if untuned is not None else "n/a"
-        untuned_txt = f"{untuned:.4f}" if untuned is not None else "n/a"
-        lines.append(
-            f"| {r['model']} | {r['split']} | {r['cv']} "
-            f"| {r['cv_pr_auc_mean']:.4f} ± {r['cv_pr_auc_std']:.4f} "
-            f"| {untuned_txt} | {r['valid_pr_auc_tuned']:.4f} | {change} |"
-        )
-    return "\n".join(lines)
-
-
 def main(argv: list[str] | None = None) -> None:
     """CLI entry point."""
-    parser = argparse.ArgumentParser(description="Tune XGBoost models (train CV, PR-AUC).")
-    parser.add_argument("--models", nargs="+", choices=XGB_NAMES, default=list(DEFAULT_MODELS))
+    parser = argparse.ArgumentParser(description="Tune models with Optuna (train CV, PR-AUC).")
+    parser.add_argument("--models", nargs="+", choices=TUNED_MODELS, default=list(TUNED_MODELS))
     parser.add_argument("--splits", nargs="+", choices=SPLIT_NAMES, default=list(SPLIT_NAMES))
-    parser.add_argument("--n-iter", type=int, default=N_ITER)
+    parser.add_argument("--n-trials", type=int, default=None, help="default: config tuning")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    optuna.logging.set_verbosity(optuna.logging.WARNING)  # our callback logs each trial
     config = load_config()
     setup_mlflow(config)
 
-    results = [run_tuning(m, s, config, args.n_iter) for s in args.splits for m in args.models]
-    md = summary_markdown(results)
-    (config.paths.metrics_dir / "tuning_summary.md").write_text(md + "\n", encoding="utf-8")
-    print(md)
+    for split in args.splits:
+        for model_key in args.models:
+            r = run_tuning(model_key, split, config, args.n_trials)
+            print(
+                f"{r['model']:7s} {r['split']:10s} cv PR-AUC {r['cv_pr_auc_mean']:.4f} "
+                f"± {r['cv_pr_auc_std']:.4f}  valid PR-AUC {r['valid_pr_auc']:.4f}  "
+                f"params {json.dumps(r['best_params'])}"
+            )
 
 
 if __name__ == "__main__":

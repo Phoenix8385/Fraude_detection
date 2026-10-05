@@ -15,6 +15,21 @@ def test_config_loads_with_expected_values() -> None:
     assert config.target_recall == 0.85
     assert config.costs.review_cost_per_alert == 5.0
     assert config.costs.missed_fraud_cost == "amount"
+    assert config.tuning.n_trials == 50 and config.tuning.cv_folds == 5
+    assert config.bootstrap.n_resamples == 1000 and config.bootstrap.ci_level == 0.95
+    assert config.stability_seeds == (42, 43, 44, 45, 46)
+    assert config.calibration.none_tolerance == 0.05
+    assert config.calibration.min_half_positives == 30
+    assert config.policy.block_precision == 0.90 and config.policy.block_min_tp == 5
+    assert config.policy.stability_resamples == 200
+
+
+def test_duplicate_stability_seeds_raise(tmp_path: Path) -> None:
+    text = (PROJECT_ROOT / "configs" / "config.yaml").read_text(encoding="utf-8")
+    bad = tmp_path / "bad.yaml"
+    bad.write_text(text.replace("[42, 43, 44, 45, 46]", "[42, 42]"), encoding="utf-8")
+    with pytest.raises(ValueError, match="distinct"):
+        load_config(bad)
 
 
 def test_split_ratios_sum_to_one() -> None:
