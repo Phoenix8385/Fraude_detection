@@ -32,7 +32,9 @@
   — source: reports/metrics/calibration_{split}.json
 - Phase 8 frozen thresholds (strat / time): t_review 0.06 / 0.02 (time: recall target NOT met),
   t_block 0.22 / 0.23 — source: reports/metrics/policy_{split}.json
-- PRE-REGISTRATION before Phase 9 (model, params file, calibrated, threshold, date):
+- PRE-REGISTRATION before Phase 9 (model, params file, calibrated, threshold, date): written
+  2026-10-05, before any test read — see "Phase 9 PRE-REGISTRATION" section below and
+  reports/metrics/preregistration.json. Phase 8 commit ef3d4b6.
 - Phase 9 final test metrics:
 - Phase 11 p95 latency:
 - Live URL:
@@ -291,3 +293,53 @@ time-split isotonic map is fitted on 24 positives. Treat calibration and thresho
 - TIME t_review is a documented FALLBACK (recall 0.8485 < 0.85, one fraud short on valid_thr).
   Accept as-is for pre-registration, or change the grid (a protocol change -> log here).
 - valid_cal (time) has 24 frauds (< 30): the isotonic map rests on few positives.
+
+## Phase 9 PRE-REGISTRATION (written 2026-10-05, BEFORE any *_test.parquet read)
+Phase 8 commit: ef3d4b636d4152872ea8a1ef9402af7888f3c55b
+("feat(policy): calibration and two-threshold decision policy").
+Machine-readable copy: reports/metrics/preregistration.json (evaluate.py checks against it).
+Authoritative source for frozen policy/thresholds: reports/metrics/policy_{split}.json.
+Thresholds are NOT recomputed; the MD5s are an extra integrity check only.
+
+### Frozen decisions
+TIME split (HEADLINE)
+- champion: tuned Logistic Regression (logreg_tuned), MLflow run 5561385ba3144bf9ae85f73d7e56d43c
+- params file: reports/metrics/best_params_logreg_time.json (C 0.000802, class_weight None)
+- calibration: isotonic (fitted on valid_cal; 24-positive warning accepted)
+- t_review 0.02 | t_block 0.23 | review_cost €5
+- validation t_review recall 0.8485 — fallback: TRUE (accepted by KING)
+- artifact: models/final_model_time.joblib, md5 bf798b5c02c429051303c99c7ab75240
+
+STRATIFIED split (secondary)
+- champion: tuned XGBoost xgb_u (xgb_u_tuned), MLflow run 15a37803c60b4c11b7f6e02007e6ff38
+- params file: reports/metrics/best_params_xgb_u_stratified.json (u 0.9273)
+- calibration: none
+- t_review 0.06 | t_block 0.22 | review_cost €5
+- validation t_review recall 0.9149 — fallback: false
+- artifact: models/final_model_stratified.joblib, md5 edd571430f01e4d50e7306180de1a458
+
+### Protocol
+- Primary metric: PR-AUC. Time split = headline; stratified = secondary. Accuracy never headlined.
+- Test scored ONCE. evaluate.py is the only module that loads *_test.parquet; it refuses to
+  re-run if final_{split}.json exists unless --force, and prints why that is bad practice.
+- Before scoring, evaluate.py refuses to run if: artifact MD5 differs from the above, or
+  policy_{split}.json disagrees with this pre-registration (model, run id, calibration,
+  t_review, t_block, review cost), or policy and champion_{split}.json disagree.
+- Nothing is fitted, tuned, recalibrated, refitted, selected or modified using test data.
+  evaluate.py does not load validation data or import threshold-selection/calibration code.
+- Metrics (metrics.compute_metrics) at t_review and at t_block: PR-AUC, ROC-AUC, precision,
+  recall, F1, specificity, FPR, confusion matrix, alerts/1k, % fraud amount caught,
+  expected cost; plus the HIGH/MEDIUM/LOW tier table on test.
+- Uncertainty: 1,000 stratified bootstrap resamples, 95% percentile CI, seed 42, for PR-AUC,
+  recall, precision, alerts/1k, expected cost.
+- Reference costs: no-model = approve everything / flag nothing / all fraud Amounts lost;
+  flag-everything = review_cost x every row, nothing missed.
+- Context-only baselines (Phase 5 frozen MLflow runs; PR-AUC + ROC-AUC, PR-AUC with bootstrap
+  CI): Dummy, untuned Logistic Regression, Isolation Forest — time: e4e4333f / 6c2623cb /
+  0f2306c5; stratified: 56fd80ab / 834a7f03 / 18a1b265. They cannot change any decision.
+- Outputs: reports/metrics/final_{split}.json, final_summary.md (paragraph on the
+  stratified-vs-time gap left for KING), confusion-matrix and PR-curve figures with the
+  t_review / t_block operating points marked.
+- Pre-declared caveats: small test sets (time 74 fraud, stratified 95 fraud — counts from
+  splits_{split}.json, Phase 4) -> wide CIs. Time t_review was a validation fallback, so test
+  recall may be below 0.85; that will be reported, not fixed.

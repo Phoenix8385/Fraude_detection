@@ -1,0 +1,43 @@
+{
+  "written": "2026-10-05",
+  "written_before_any_test_read": true,
+  "phase8_commit": "ef3d4b636d4152872ea8a1ef9402af7888f3c55b",
+  "authoritative_policy_source": "reports/metrics/policy_{split}.json",
+  "primary_metric": "pr_auc",
+  "headline_split": "time",
+  "bootstrap": {"n_resamples": 1000, "ci_level": 0.95, "stratified": true, "seed": 42},
+  "splits": {
+    "time": {
+      "champion": "logreg",
+      "mlflow_run_id": "5561385ba3144bf9ae85f73d7e56d43c",
+      "calibration": "isotonic",
+      "t_review": 0.02,
+      "t_block": 0.23,
+      "review_cost": 5.0,
+      "valid_t_review_recall": 0.8485,
+      "fallback": true,
+      "artifact": "models/final_model_time.joblib",
+      "artifact_md5": "bf798b5c02c429051303c99c7ab75240"
+    },
+    "stratified": {
+      "champion": "xgb_u",
+      "mlflow_run_id": "15a37803c60b4c11b7f6e02007e6ff38",
+      "calibration": "none",
+      "t_review": 0.06,
+      "t_block": 0.22,
+      "review_cost": 5.0,
+      "valid_t_review_recall": 0.9149,
+      "fallback": false,
+      "artifact": "models/final_model_stratified.joblib",
+      "artifact_md5": "edd571430f01e4d50e7306180de1a458"
+    }
+  },
+  "context_baselines_phase5": {
+    "time": {"dummy": "e4e4333fe478414da7d4213b89017483", "logreg": "6c2623cb65c74c40aeb4e8bc61ab4df3", "iforest": "0f2306c5800d450e917814bd2e83d926"},
+    "stratified": {"dummy": "56fd80ab1c074b92ab3c2c1075ee6698", "logreg": "834a7f03eb164934be64bf0e73d43408", "iforest": "18a1b265ae0e421ea88d1aa496f1873b"}
+  },
+  "reference_costs": {
+    "no_model": "approve everything / flag nothing: cost = sum of all fraud Amounts",
+    "flag_everything": "alert on every row: cost = review_cost x rows, no fraud missed"
+  }
+}
