@@ -11,7 +11,7 @@
 ## Part A - Model
 - [x] Phase 7 Optuna tuning + bootstrap CIs + champion decision
 - [x] Phase 8 Calibration + two-threshold policy
-- [ ] Phase 9 One-shot test evaluation (pre-registered)
+- [x] Phase 9 One-shot test evaluation (pre-registered)
 - [ ] Phase 10 SHAP, artifact, reference profile, model card
 
 ## Part B - Service (release v1.0.0)
@@ -27,4 +27,4 @@
 - [ ] Phase 18 Compose, final deploy, README, runbook, tag v1.1.0
 
 ## Current phase
-Phase 9 — NOT started; awaiting KING approval
+Phase 10 — NOT STARTED; awaiting KING approval

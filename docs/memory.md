@@ -35,7 +35,30 @@
 - PRE-REGISTRATION before Phase 9 (model, params file, calibrated, threshold, date): written
   2026-10-05, before any test read — see "Phase 9 PRE-REGISTRATION" section below and
   reports/metrics/preregistration.json. Phase 8 commit ef3d4b6.
-- Phase 9 final test metrics:
+- Phase 9 final test metrics (one-shot TEST run 2026-10-05, committed in 3a3297b; source:
+  reports/metrics/final_{split}.json, final_summary.md; 95% stratified bootstrap CIs,
+  1,000 resamples, seed 42). Frozen Phase 8 policy applied as pre-registered; the test
+  results were NOT used to change the model, calibration or thresholds.
+  TIME (headline) — tuned logreg, isotonic, t_review 0.02, t_block 0.23; 56,745 rows / 74 fraud:
+    PR-AUC 0.7594 [0.6625, 0.8447] (ROC-AUC 0.9762). At t_review: recall 0.824 [0.730, 0.905]
+    (61/74), precision 0.459 [0.397, 0.525], F1 0.589, 2.34 alerts/1k [2.03, 2.68], expected
+    cost €3,042.48 [€1,013.04, €6,185.73], fraud amount caught 69.2%. No-model cost €7,727.67;
+    flag-everything €283,725.00. Savings vs no-model €4,685.19 (60.6%) — derived as
+    no-model − model from the two stored costs, not itself stored in reports/metrics.
+    At t_block: precision 0.943 [0.877, 1.000], recall 0.676 [0.568, 0.770] (50 TP, 3 FP).
+    Tiers: HIGH/HOLD 53 (50 fraud, 67.6% of fraud); MEDIUM/REVIEW 80 (11, 14.9%);
+    LOW/APPROVE 56,612 (13, 17.6%).
+  STRATIFIED (secondary) — tuned xgb_u, none, t_review 0.06, t_block 0.22; 56,746 rows / 95 fraud:
+    PR-AUC 0.8259 [0.7501, 0.8969] (ROC-AUC 0.9738). At t_review: recall 0.811 [0.737, 0.884]
+    (77/95), precision 0.762 [0.691, 0.843], F1 0.786, 1.78 alerts/1k [1.59, 2.01], expected
+    cost €4,287.79 [€1,647.31, €7,658.90], fraud amount caught 74.4%. No-model cost €14,766.31;
+    flag-everything €283,730.00. Savings vs no-model €10,478.52 (71.0%) — derived as above.
+    At t_block: precision 0.916 [0.856, 0.964], recall 0.800 [0.726, 0.874] (76 TP, 7 FP).
+    Tiers: HIGH/HOLD 83 (76 fraud, 80.0%); MEDIUM/REVIEW 18 (1, 1.1%); LOW/APPROVE 56,645 (18, 18.9%).
+  Recall at t_review is below 0.85 on BOTH test splits (time was a pre-declared validation
+  fallback; stratified met 0.9149 on validation). Context-only Phase 5 baselines, test PR-AUC
+  (time / stratified): dummy 0.0013 / 0.0017, untuned logreg 0.7578 / 0.6860, iforest
+  0.0457 / 0.0798. Stratified-vs-time paragraph: final_summary.md (no causal claim made).
 - Phase 11 p95 latency:
 - Live URL:
 
