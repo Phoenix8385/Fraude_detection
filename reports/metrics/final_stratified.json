@@ -1,0 +1,184 @@
+{
+  "split": "stratified",
+  "headline": false,
+  "evaluated_at": "2026-10-05T10:00:39+00:00",
+  "phase8_commit": "ef3d4b636d4152872ea8a1ef9402af7888f3c55b",
+  "artifact": "models/final_model_stratified.joblib",
+  "artifact_md5_verified": "edd571430f01e4d50e7306180de1a458",
+  "frozen_policy": {
+    "model": "xgb_u",
+    "mlflow_run_id": "15a37803c60b4c11b7f6e02007e6ff38",
+    "calibration": "none",
+    "t_review": 0.06,
+    "t_block": 0.22,
+    "review_cost": 5.0
+  },
+  "validation_t_review_recall": 0.9149,
+  "validation_fallback": false,
+  "test_rows": 56746,
+  "test_fraud": 95,
+  "at_t_review": {
+    "pr_auc": 0.8258801567097256,
+    "roc_auc": 0.9737576983357938,
+    "precision": 0.7623762376237624,
+    "recall": 0.8105263157894737,
+    "f1": 0.7857142857142857,
+    "specificity": 0.9995763534624279,
+    "fpr": 0.0004236465375721523,
+    "tp": 77,
+    "fp": 24,
+    "tn": 56627,
+    "fn": 18,
+    "alerts_per_1000": 1.7798611355866494,
+    "fraud_amount_caught_pct": 74.3822932066305,
+    "expected_cost": 4287.79,
+    "threshold": 0.06
+  },
+  "at_t_review_ci": {
+    "pr_auc": {
+      "point": 0.8258801567097256,
+      "ci_low": 0.7501229510275633,
+      "ci_high": 0.8969394103049153
+    },
+    "recall": {
+      "point": 0.8105263157894737,
+      "ci_low": 0.7368421052631579,
+      "ci_high": 0.8842105263157894
+    },
+    "precision": {
+      "point": 0.7623762376237624,
+      "ci_low": 0.6909090909090909,
+      "ci_high": 0.842722963483146
+    },
+    "alerts_per_1000": {
+      "point": 1.7798611355866494,
+      "ci_low": 1.586014873295034,
+      "ci_high": 2.0089521728403765
+    },
+    "expected_cost": {
+      "point": 4287.79,
+      "ci_low": 1647.31175,
+      "ci_high": 7658.899499999999
+    }
+  },
+  "at_t_block": {
+    "pr_auc": 0.8258801567097256,
+    "roc_auc": 0.9737576983357938,
+    "precision": 0.9156626506024096,
+    "recall": 0.8,
+    "f1": 0.8539325842696628,
+    "specificity": 0.9998764364265414,
+    "fpr": 0.0001235635734585444,
+    "tp": 76,
+    "fp": 7,
+    "tn": 56644,
+    "fn": 19,
+    "alerts_per_1000": 1.4626581609276426,
+    "fraud_amount_caught_pct": 74.36725898345627,
+    "expected_cost": 4200.01,
+    "threshold": 0.22
+  },
+  "at_t_block_ci": {
+    "pr_auc": {
+      "point": 0.8258801567097256,
+      "ci_low": 0.7501229510275633,
+      "ci_high": 0.8969394103049153
+    },
+    "recall": {
+      "point": 0.8,
+      "ci_low": 0.7260526315789476,
+      "ci_high": 0.8736842105263158
+    },
+    "precision": {
+      "point": 0.9156626506024096,
+      "ci_low": 0.8555555555555555,
+      "ci_high": 0.9642857142857143
+    },
+    "alerts_per_1000": {
+      "point": 1.4626581609276426,
+      "ci_low": 1.3040566735981391,
+      "ci_high": 1.638882035738202
+    },
+    "expected_cost": {
+      "point": 4200.01,
+      "ci_low": 1557.1555000000005,
+      "ci_high": 7612.6035
+    }
+  },
+  "tiers_test": [
+    {
+      "tier": "HIGH",
+      "action": "HOLD",
+      "count": 83,
+      "fraud": 76,
+      "fraud_share": 0.9156626506024096,
+      "share_of_all_fraud": 0.8,
+      "alerts_per_1000": 1.4626581609276426
+    },
+    {
+      "tier": "MEDIUM",
+      "action": "REVIEW",
+      "count": 18,
+      "fraud": 1,
+      "fraud_share": 0.05555555555555555,
+      "share_of_all_fraud": 0.010526315789473684,
+      "alerts_per_1000": 0.3172029746590068
+    },
+    {
+      "tier": "LOW",
+      "action": "APPROVE",
+      "count": 56645,
+      "fraud": 18,
+      "fraud_share": 0.0003177685585665107,
+      "share_of_all_fraud": 0.18947368421052632,
+      "alerts_per_1000": 998.2201388644133
+    }
+  ],
+  "reference_costs": {
+    "no_model": {
+      "expected_cost": 14766.310000000001,
+      "alerts": 0,
+      "definition": "approve everything / flag nothing: all fraud Amounts lost"
+    },
+    "flag_everything": {
+      "expected_cost": 283730.0,
+      "alerts": 56746,
+      "definition": "alert on every row: review_cost x rows, none missed"
+    }
+  },
+  "context_baselines": {
+    "dummy": {
+      "mlflow_run_id": "56fd80ab1c074b92ab3c2c1075ee6698",
+      "pr_auc": 0.0016741268107003137,
+      "pr_auc_ci": [
+        0.0016741268107003137,
+        0.0016741268107003137
+      ],
+      "roc_auc": 0.5
+    },
+    "logreg": {
+      "mlflow_run_id": "834a7f03eb164934be64bf0e73d43408",
+      "pr_auc": 0.6859725340284571,
+      "pr_auc_ci": [
+        0.5785186897152582,
+        0.7816327278836409
+      ],
+      "roc_auc": 0.9678281332888629
+    },
+    "iforest": {
+      "mlflow_run_id": "18a1b265ae0e421ea88d1aa496f1873b",
+      "pr_auc": 0.07981042147170023,
+      "pr_auc_ci": [
+        0.05664073996540131,
+        0.12307424896602266
+      ],
+      "roc_auc": 0.9398195228587966
+    }
+  },
+  "bootstrap": {
+    "n_resamples": 1000,
+    "ci_level": 0.95,
+    "stratified": true,
+    "seed": 42
+  }
+}
