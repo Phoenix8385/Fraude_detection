@@ -46,6 +46,15 @@ table at €2 / €5 / €20 will be added once the threshold is selected.
 
 ## Explainability
 
+The production model (`logreg-iso-v1.0.0`, time split) is a scaled Logistic Regression, so each
+feature's **model contribution** is its coefficient × scaled value, in log-odds of the
+**uncalibrated** model; with the intercept as base they sum exactly to the model's log-odds.
+No `shap` library is needed at serving time (`shap` is used only for the plots in
+`reports/figures/shap_*_time.png`). Contributions describe the model's arithmetic, not causes
+of fraud, and `V1`–`V28` are anonymised PCA components without business meaning. Largest mean
+|contribution| on 2,000 `valid_thr` rows: V14, V4, V10, V11, V3
+(`reports/metrics/explain_time.json`). Details and limitations: [MODEL_CARD.md](MODEL_CARD.md).
+
 ## API
 
 ## Run locally / Docker

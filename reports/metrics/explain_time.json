@@ -1,0 +1,255 @@
+{
+  "model": "logreg (tuned, time split) + isotonic calibration",
+  "method": "coef_j * scaled x_j; base = intercept; log-odds of the UNCALIBRATED LR",
+  "interpretation": "model contribution, not cause",
+  "sample": "2000 valid_thr rows (time split), seed 42",
+  "base_value": -7.132732538405019,
+  "global_importance": [
+    {
+      "feature": "V14",
+      "mean_abs_contribution": 0.2269425476793803,
+      "mean_contribution": 0.07404377172143049,
+      "coefficient_scaled": -0.3258643941820192
+    },
+    {
+      "feature": "V4",
+      "mean_abs_contribution": 0.13378112756523883,
+      "mean_contribution": -0.03407136439991308,
+      "coefficient_scaled": 0.16002776199321667
+    },
+    {
+      "feature": "V10",
+      "mean_abs_contribution": 0.10266223738609032,
+      "mean_contribution": -0.016013709177899516,
+      "coefficient_scaled": -0.1432858470674182
+    },
+    {
+      "feature": "V11",
+      "mean_abs_contribution": 0.09044514847764762,
+      "mean_contribution": -0.04953040609113104,
+      "coefficient_scaled": 0.11527622092285637
+    },
+    {
+      "feature": "V3",
+      "mean_abs_contribution": 0.09023744293200638,
+      "mean_contribution": 0.07499746957776882,
+      "coefficient_scaled": -0.08180287899630852
+    },
+    {
+      "feature": "V12",
+      "mean_abs_contribution": 0.08720206135250978,
+      "mean_contribution": -0.035429526751441044,
+      "coefficient_scaled": -0.16974634721895768
+    },
+    {
+      "feature": "V16",
+      "mean_abs_contribution": 0.0630262915274963,
+      "mean_contribution": 0.00024847199212818326,
+      "coefficient_scaled": -0.08370016885830502
+    },
+    {
+      "feature": "V17",
+      "mean_abs_contribution": 0.05432598214725299,
+      "mean_contribution": 0.01144281493901163,
+      "coefficient_scaled": -0.08442200811660101
+    },
+    {
+      "feature": "V9",
+      "mean_abs_contribution": 0.04263252359298435,
+      "mean_contribution": 0.00337927414863172,
+      "coefficient_scaled": -0.060879535534616426
+    },
+    {
+      "feature": "V8",
+      "mean_abs_contribution": 0.03631563070315437,
+      "mean_contribution": 0.008458158828559955,
+      "coefficient_scaled": -0.08358977233640454
+    },
+    {
+      "feature": "Time",
+      "mean_abs_contribution": 0.029486923785963105,
+      "mean_contribution": 0.029486923785963105,
+      "coefficient_scaled": 0.01049843146777282
+    },
+    {
+      "feature": "V22",
+      "mean_abs_contribution": 0.025841214458038466,
+      "mean_contribution": 0.009281404493674553,
+      "coefficient_scaled": 0.02479060569891653
+    },
+    {
+      "feature": "V2",
+      "mean_abs_contribution": 0.02465542039795362,
+      "mean_contribution": -0.005518363372466274,
+      "coefficient_scaled": 0.03757259298391637
+    },
+    {
+      "feature": "V13",
+      "mean_abs_contribution": 0.022869712530305668,
+      "mean_contribution": 0.0042685615685146,
+      "coefficient_scaled": -0.032845697784460275
+    },
+    {
+      "feature": "V21",
+      "mean_abs_contribution": 0.02016351348877481,
+      "mean_contribution": 0.0035227795489624586,
+      "coefficient_scaled": 0.04134542505135788
+    },
+    {
+      "feature": "V5",
+      "mean_abs_contribution": 0.019727794895244826,
+      "mean_contribution": 0.008768279940880076,
+      "coefficient_scaled": 0.026274343972113947
+    },
+    {
+      "feature": "V6",
+      "mean_abs_contribution": 0.01742331545769639,
+      "mean_contribution": 0.0023674260483703947,
+      "coefficient_scaled": -0.02249144692093415
+    },
+    {
+      "feature": "V7",
+      "mean_abs_contribution": 0.017092617475132858,
+      "mean_contribution": -0.004482296630067843,
+      "coefficient_scaled": -0.02429477465653954
+    },
+    {
+      "feature": "V24",
+      "mean_abs_contribution": 0.016824076406594,
+      "mean_contribution": 0.000675678783851366,
+      "coefficient_scaled": -0.021022571133928983
+    },
+    {
+      "feature": "V25",
+      "mean_abs_contribution": 0.01632221478655874,
+      "mean_contribution": 0.007420550383187683,
+      "coefficient_scaled": -0.015440220680155867
+    },
+    {
+      "feature": "V1",
+      "mean_abs_contribution": 0.014632000170808134,
+      "mean_contribution": -0.0032911342157425204,
+      "coefficient_scaled": -0.016291588575367104
+    },
+    {
+      "feature": "log_amount",
+      "mean_abs_contribution": 0.012741925042548523,
+      "mean_contribution": -0.0014957356221316056,
+      "coefficient_scaled": -0.01558752631011034
+    },
+    {
+      "feature": "V20",
+      "mean_abs_contribution": 0.012011522748789243,
+      "mean_contribution": 0.004042238157878244,
+      "coefficient_scaled": -0.021253226629638078
+    },
+    {
+      "feature": "V23",
+      "mean_abs_contribution": 0.009764314499952397,
+      "mean_contribution": -0.0019394930197338314,
+      "coefficient_scaled": -0.01788932091153377
+    },
+    {
+      "feature": "Amount",
+      "mean_abs_contribution": 0.008633003567310938,
+      "mean_contribution": 0.0006316972919598725,
+      "coefficient_scaled": 0.020404138702336504
+    },
+    {
+      "feature": "V26",
+      "mean_abs_contribution": 0.006778091937555883,
+      "mean_contribution": -0.0008096263646531303,
+      "coefficient_scaled": 0.009010414912265275
+    },
+    {
+      "feature": "V27",
+      "mean_abs_contribution": 0.0047507136007145425,
+      "mean_contribution": 0.00019166075612675365,
+      "coefficient_scaled": -0.009127452682657584
+    },
+    {
+      "feature": "V19",
+      "mean_abs_contribution": 0.001689171064820048,
+      "mean_contribution": 0.000153272711204759,
+      "coefficient_scaled": 0.0022569961137329734
+    },
+    {
+      "feature": "V18",
+      "mean_abs_contribution": 0.0012019131583943868,
+      "mean_contribution": -0.0002640332306900124,
+      "coefficient_scaled": -0.0014640643434292908
+    },
+    {
+      "feature": "V28",
+      "mean_abs_contribution": 0.0010170123086751656,
+      "mean_contribution": 1.203611719535415e-05,
+      "coefficient_scaled": 0.001902966662016854
+    },
+    {
+      "feature": "V15",
+      "mean_abs_contribution": 0.00010762804093838917,
+      "mean_contribution": 4.98819602987822e-05,
+      "coefficient_scaled": -0.0001462959260772165
+    },
+    {
+      "feature": "hour_of_day",
+      "mean_abs_contribution": 3.075815637437367e-05,
+      "mean_contribution": -3.0042543987392947e-05,
+      "coefficient_scaled": -0.00014106903813373197
+    }
+  ],
+  "examples_valid_thr": {
+    "fraud": {
+      "base_value": -7.132732538405019,
+      "log_odds": -3.093327940019675,
+      "top_contributions": [
+        {
+          "feature": "V14",
+          "contribution": 1.6023644897279778
+        },
+        {
+          "feature": "V4",
+          "contribution": 0.4053078691489232
+        },
+        {
+          "feature": "V12",
+          "contribution": 0.3716939117431381
+        },
+        {
+          "feature": "V10",
+          "contribution": 0.34784598153182317
+        },
+        {
+          "feature": "V11",
+          "contribution": 0.3331149769131685
+        }
+      ]
+    },
+    "legit": {
+      "base_value": -7.132732538405019,
+      "log_odds": -7.210691980844286,
+      "top_contributions": [
+        {
+          "feature": "V14",
+          "contribution": 0.4379884610355615
+        },
+        {
+          "feature": "V11",
+          "contribution": -0.12338566914171487
+        },
+        {
+          "feature": "V12",
+          "contribution": -0.12338300277607302
+        },
+        {
+          "feature": "V16",
+          "contribution": -0.07703270561788647
+        },
+        {
+          "feature": "V4",
+          "contribution": -0.05478881334117745
+        }
+      ]
+    }
+  }
+}

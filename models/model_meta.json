@@ -1,0 +1,133 @@
+{
+  "model_version": "logreg-iso-v1.0.0",
+  "model_name": "logreg_tuned",
+  "headline_split": "time",
+  "mlflow_run_id": "5561385ba3144bf9ae85f73d7e56d43c",
+  "best_params": {
+    "C": 0.0008018640159241785,
+    "class_weight": null
+  },
+  "calibrated": true,
+  "calibration": "isotonic",
+  "thresholds": {
+    "review": 0.02,
+    "block": 0.23
+  },
+  "review_cost": 5.0,
+  "t_review_validation_fallback": true,
+  "features": [
+    "Time",
+    "V1",
+    "V2",
+    "V3",
+    "V4",
+    "V5",
+    "V6",
+    "V7",
+    "V8",
+    "V9",
+    "V10",
+    "V11",
+    "V12",
+    "V13",
+    "V14",
+    "V15",
+    "V16",
+    "V17",
+    "V18",
+    "V19",
+    "V20",
+    "V21",
+    "V22",
+    "V23",
+    "V24",
+    "V25",
+    "V26",
+    "V27",
+    "V28",
+    "Amount",
+    "log_amount",
+    "hour_of_day"
+  ],
+  "input_columns": [
+    "Time",
+    "V1",
+    "V2",
+    "V3",
+    "V4",
+    "V5",
+    "V6",
+    "V7",
+    "V8",
+    "V9",
+    "V10",
+    "V11",
+    "V12",
+    "V13",
+    "V14",
+    "V15",
+    "V16",
+    "V17",
+    "V18",
+    "V19",
+    "V20",
+    "V21",
+    "V22",
+    "V23",
+    "V24",
+    "V25",
+    "V26",
+    "V27",
+    "V28",
+    "Amount"
+  ],
+  "schema_hash": "a146023e7c40b727fedd131e0ea3283353080b33561aa328aca675381cf2250d",
+  "source_artifact": "final_model_time.joblib",
+  "artifact_md5": "bf798b5c02c429051303c99c7ab75240",
+  "phase8_commit": "ef3d4b636d4152872ea8a1ef9402af7888f3c55b",
+  "trained": "Phase 7 MLflow run (see mlflow_run_id); calibrated in Phase 8 (phase8_commit)",
+  "final_test_metrics": {
+    "source": "reports/metrics/final_time.json",
+    "test_rows": 56745,
+    "test_fraud": 74,
+    "pr_auc": {
+      "point": 0.7594267969215033,
+      "ci_low": 0.6624696750740166,
+      "ci_high": 0.8447250469667139
+    },
+    "recall": {
+      "point": 0.8243243243243243,
+      "ci_low": 0.7297297297297297,
+      "ci_high": 0.9054054054054054
+    },
+    "precision": {
+      "point": 0.45864661654135336,
+      "ci_low": 0.3972208534542229,
+      "ci_high": 0.5254237288135594
+    },
+    "alerts_per_1000": {
+      "point": 2.3438188386641996,
+      "ci_low": 2.0266102740329544,
+      "ci_high": 2.6786501013305135
+    },
+    "expected_cost": {
+      "point": 3042.48,
+      "ci_low": 1013.0435000000002,
+      "ci_high": 6185.730249999999
+    },
+    "roc_auc": 0.9761565927947322
+  },
+  "explanations": "coef x scaled feature, log-odds of the UNCALIBRATED LR; not causes",
+  "reference_profile": "reference_profile.json",
+  "library_versions": {
+    "python": "3.11.15",
+    "sklearn": "1.9.1",
+    "numpy": "2.4.6",
+    "pandas": "3.0.6",
+    "joblib": "1.6.0",
+    "xgboost": "3.2.0",
+    "imblearn": "0.14.2"
+  },
+  "git_commit": "f06cdfc4298b466c8c2c25480d134c37b44373e3",
+  "packaged_at": "2026-10-05T10:20:29+00:00"
+}

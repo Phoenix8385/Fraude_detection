@@ -366,3 +366,41 @@ STRATIFIED split (secondary)
 - Pre-declared caveats: small test sets (time 74 fraud, stratified 95 fraud — counts from
   splits_{split}.json, Phase 4) -> wide CIs. Time t_review was a validation fallback, so test
   recall may be below 0.85; that will be reported, not fixed.
+
+## Phase 10 decisions & results (2026-10-05) — explainability, artifact, model card
+KING decisions: explain the headline production model only (time split, tuned LR + isotonic);
+no production explanations for the stratified XGBoost; no predict.py (Phase 11).
+- SUPERSEDES "SHAP in serving via XGBoost pred_contribs" (Fixed decisions): the headline
+  champion is Logistic Regression, so explanations use coef_j x scaled x_j (the pipeline's
+  StandardScaler), base = intercept, in log-odds of the UNCALIBRATED LR. Equals linear SHAP with
+  the training mean as background; sums exactly to the LR log-odds (tested). No shap library
+  at serving time; shap used for plots only. Contributions = "model contribution", never cause.
+- explain.py: global sample = 2,000 valid_thr rows (time), seed 42; base value -7.1327; top
+  mean |contribution|: V14, V4, V10, V11, V3 (reports/metrics/explain_time.json). Figures:
+  shap_beeswarm_time.png, shap_bar_time.png, shap_waterfall_{fraud,legit}_time.png (1 true
+  fraud + 1 true legit from valid_thr, seeded). Plots/JSON contain NO raw V1..V28 values
+  (waterfall data=None; beeswarm coloured by scaled values; JSON stores contributions only).
+- artifacts.py: models/model.joblib = byte-identical copy of models/final_model_time.joblib
+  (md5 bf798b5c02c429051303c99c7ab75240; verified at save and load). model_version
+  logreg-iso-v1.0.0. model_meta.json: thresholds from policy_time.json (review 0.02, block
+  0.23, fallback true), features (32), schema_hash (SHA-256 of input columns + ordered model
+  features), library versions, git commit at packaging (f06cdfc), Phase 8 commit, MLflow run,
+  final test metrics copied from final_time.json. load_artifact raises on MD5 / feature /
+  schema mismatch and warns on library-version drift. Model file is 4.2 KB.
+- reference_profile.json: Amount + served (calibrated) score, 10 quantile bins on valid_thr
+  (time), tied edges merged -> Amount 10 bins, score 4 bins (isotonic ties); first score bin
+  (-inf, 0.0) has proportion 0.0 -> Phase 17 PSI needs a small floor for empty bins.
+  Amount source = valid_thr too (KING specified valid_thr for score; Amount source unspecified,
+  same window chosen for consistency). No V1..V28 profiles, no raw rows.
+- MODEL_CARD.md written; README Explainability section filled. All numbers traced to
+  reports/metrics/* or model_meta.json; the dataset year was left out (not in the repo).
+- Not done (by decision): stratified explanations, predict.py, drift.py (Phase 17).
+- SPEC CONFLICT (documented at closeout, KING decision): the original Phase 10 spec asked for
+  reports/examples/sample_transactions.json with 5 fraud + 5 legitimate valid_thr rows.
+  CLAUDE.md forbids storing/logging raw V1..V28 values, so that file was NOT created and no
+  real transaction rows were committed. Synthetic (clearly labelled) API examples may be
+  created in Phase 11 if required; none were created in Phase 10.
+- REFERENCE-PROFILE CAVEAT (for Phase 17): the calibrated score profile has only 4 bins because
+  isotonic calibration produces tied values (tied quantile edges merged); one bin, (-inf, 0.0),
+  has a zero reference proportion. The Phase 17 PSI implementation must handle zero reference
+  (and current) proportions safely, e.g. with a documented small floor, never log(0) or /0.
