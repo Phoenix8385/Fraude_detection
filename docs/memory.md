@@ -457,3 +457,36 @@ swallowed + counted (never fail a prediction). Settings only from env (api/setti
 - Notes for later phases: (1) Phase 13 — pandera is now in requirements-api.txt/lock (needed by
   schema.py); xgboost's Linux nvidia-nccl-cu12 dependency will bloat the image. (2) starlette warns that httpx in TestClient is deprecated
   (httpx2); informational only. (3) uvicorn verified: /docs, /openapi.json, /ready, /v1/predict.
+
+## Phase 12 decisions & results (2026-10-05) — test hardening
+- Coverage (pytest --cov=src/fraud_detection --cov=api --cov-fail-under=85): TOTAL 98.61%
+  (1,727 statements, 24 missed; api/ 100%). 271 tests. Before Phase 12: 75%.
+  Remaining misses are `if __name__ == "__main__"` lines and a few rare error branches.
+  No `# pragma: no cover` added.
+- How coverage was raised: tests/test_pipeline_synthetic.py runs every stage's real CLI
+  (data, splits, train, compare, tune, champion, calibrate, evaluate, artifacts, explain) on
+  3,000 generated rows (+5 duplicates) in a temp project root with a tiny-budget config
+  (2 Optuna trials, 2 folds, 20 bootstrap resamples, 2 seeds, 10 stability resamples) and a
+  temp MLflow store. load_config is redirected per module (and artifacts.PROJECT_ROOT); the
+  test asserts the real models/model.joblib and reports/metrics/final_time.json are unchanged.
+  The real mlflow.db was not written. Takes ~3 minutes.
+- MODEL_PATH (Phase 12 spec): api/settings.py now honours MODEL_PATH (path to model.joblib;
+  model_meta.json beside it) with precedence over MODELS_DIR; any other file name is rejected.
+  conftest sets MODEL_PATH to a synthetic artifact for the whole session (autouse), so no
+  test can load the real model. Only production change in Phase 12.
+- OpenAPI contract snapshot: tests/contracts/openapi.json (6 paths, 12 schemas; sorted keys;
+  no timestamps/paths). tests/test_openapi_contract.py compares parsed JSON (line-ending
+  safe), shows a readable diff, proves 5 simulated breaking changes are caught, and pins core
+  facts (routes, batch maxItems 500, extra fields forbidden, required response fields, error
+  codes). Regenerate only for intended changes: python scripts/export_openapi.py [--check].
+- Log privacy: markers V1=987654.321, V2=-123456.789 never appear in ANY logger's records
+  (root capture) for predict / explain / batch, nor in 422 responses or logs (invalid
+  sibling field, type error, extra field carrying a marker).
+- Bootstrap bounds test: ci_low <= ci_high for all metrics; rates within [0, 1] up to 1e-12.
+  OBSERVATION: np.percentile can return 1.0000000000000002 as an upper bound for a rate
+  (interpolating between 1.0 values). Float noise only; bootstrap code NOT changed (frozen
+  Phase 7-9 method). Config validation: every fail-fast branch now tested.
+- Leakage guard unchanged and passing (30 cases, src/fraud_detection + api).
+- Synthetic-environment proof: the full suite (271 passed) also ran in a scratch copy of the
+  repo containing NO models/ folder, NO data/ folder and NO mlflow.db (imports verified to
+  come from the copy) -> tests need neither the real CSV nor any real model artifact.

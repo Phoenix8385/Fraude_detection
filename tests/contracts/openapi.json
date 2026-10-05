@@ -1,0 +1,1192 @@
+{
+  "components": {
+    "schemas": {
+      "BatchRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "transactions": {
+            "items": {
+              "$ref": "#/components/schemas/Transaction"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Transactions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "transactions"
+        ],
+        "title": "BatchRequest",
+        "type": "object"
+      },
+      "BatchResponse": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "model_version": {
+            "title": "Model Version",
+            "type": "string"
+          },
+          "predictions": {
+            "items": {
+              "$ref": "#/components/schemas/PredictionResponse"
+            },
+            "title": "Predictions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "predictions",
+          "count",
+          "model_version",
+          "latency_ms"
+        ],
+        "title": "BatchResponse",
+        "type": "object"
+      },
+      "Contribution": {
+        "properties": {
+          "contribution": {
+            "description": "Log-odds contribution (uncalibrated model)",
+            "title": "Contribution",
+            "type": "number"
+          },
+          "feature": {
+            "title": "Feature",
+            "type": "string"
+          },
+          "value": {
+            "description": "The caller's own input value, echoed back",
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "feature",
+          "value",
+          "contribution"
+        ],
+        "title": "Contribution",
+        "type": "object"
+      },
+      "ErrorDetail": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "request_id"
+        ],
+        "title": "ErrorDetail",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "ExplainResponse": {
+        "properties": {
+          "base_value": {
+            "description": "Intercept: log-odds at the training mean",
+            "title": "Base Value",
+            "type": "number"
+          },
+          "contributions": {
+            "items": {
+              "$ref": "#/components/schemas/Contribution"
+            },
+            "title": "Contributions",
+            "type": "array"
+          },
+          "fraud_probability": {
+            "description": "Calibrated (isotonic) probability",
+            "title": "Fraud Probability",
+            "type": "number"
+          },
+          "is_flagged": {
+            "description": "True when fraud_probability >= thresholds.review",
+            "title": "Is Flagged",
+            "type": "boolean"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "log_odds": {
+            "description": "Uncalibrated log-odds = base_value + all contributions",
+            "title": "Log Odds",
+            "type": "number"
+          },
+          "model_version": {
+            "title": "Model Version",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "recommended_action": {
+            "enum": [
+              "HOLD",
+              "REVIEW",
+              "APPROVE"
+            ],
+            "title": "Recommended Action",
+            "type": "string"
+          },
+          "risk_tier": {
+            "enum": [
+              "HIGH",
+              "MEDIUM",
+              "LOW"
+            ],
+            "title": "Risk Tier",
+            "type": "string"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/Thresholds"
+          },
+          "transaction_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transaction Id"
+          },
+          "units": {
+            "title": "Units",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "fraud_probability",
+          "risk_tier",
+          "recommended_action",
+          "is_flagged",
+          "thresholds",
+          "model_version",
+          "latency_ms",
+          "base_value",
+          "log_odds",
+          "units",
+          "note",
+          "contributions"
+        ],
+        "title": "ExplainResponse",
+        "type": "object"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "const": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
+      "ModelInfo": {
+        "properties": {
+          "calibration": {
+            "title": "Calibration",
+            "type": "string"
+          },
+          "explanations": {
+            "title": "Explanations",
+            "type": "string"
+          },
+          "features": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "final_test_metrics": {
+            "additionalProperties": true,
+            "title": "Final Test Metrics",
+            "type": "object"
+          },
+          "headline_split": {
+            "title": "Headline Split",
+            "type": "string"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          },
+          "model_version": {
+            "title": "Model Version",
+            "type": "string"
+          },
+          "schema_hash": {
+            "title": "Schema Hash",
+            "type": "string"
+          },
+          "t_review_validation_fallback": {
+            "title": "T Review Validation Fallback",
+            "type": "boolean"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/Thresholds"
+          }
+        },
+        "required": [
+          "model_version",
+          "model_name",
+          "headline_split",
+          "calibration",
+          "thresholds",
+          "t_review_validation_fallback",
+          "features",
+          "schema_hash",
+          "explanations",
+          "final_test_metrics"
+        ],
+        "title": "ModelInfo",
+        "type": "object"
+      },
+      "PredictionResponse": {
+        "properties": {
+          "fraud_probability": {
+            "description": "Calibrated (isotonic) probability",
+            "title": "Fraud Probability",
+            "type": "number"
+          },
+          "is_flagged": {
+            "description": "True when fraud_probability >= thresholds.review",
+            "title": "Is Flagged",
+            "type": "boolean"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "model_version": {
+            "title": "Model Version",
+            "type": "string"
+          },
+          "recommended_action": {
+            "enum": [
+              "HOLD",
+              "REVIEW",
+              "APPROVE"
+            ],
+            "title": "Recommended Action",
+            "type": "string"
+          },
+          "risk_tier": {
+            "enum": [
+              "HIGH",
+              "MEDIUM",
+              "LOW"
+            ],
+            "title": "Risk Tier",
+            "type": "string"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/Thresholds"
+          },
+          "transaction_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transaction Id"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "fraud_probability",
+          "risk_tier",
+          "recommended_action",
+          "is_flagged",
+          "thresholds",
+          "model_version",
+          "latency_ms"
+        ],
+        "title": "PredictionResponse",
+        "type": "object"
+      },
+      "Ready": {
+        "properties": {
+          "db_ok": {
+            "title": "Db Ok",
+            "type": "boolean"
+          },
+          "model_loaded": {
+            "title": "Model Loaded",
+            "type": "boolean"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "not_ready"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "store": {
+            "title": "Store",
+            "type": "string"
+          },
+          "store_failures": {
+            "title": "Store Failures",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "model_loaded",
+          "model_version",
+          "db_ok",
+          "store",
+          "store_failures"
+        ],
+        "title": "Ready",
+        "type": "object"
+      },
+      "Thresholds": {
+        "properties": {
+          "block": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Block"
+          },
+          "review": {
+            "title": "Review",
+            "type": "number"
+          }
+        },
+        "required": [
+          "review",
+          "block"
+        ],
+        "title": "Thresholds",
+        "type": "object"
+      },
+      "Transaction": {
+        "additionalProperties": false,
+        "properties": {
+          "Amount": {
+            "description": "Transaction amount",
+            "minimum": 0.0,
+            "title": "Amount",
+            "type": "number"
+          },
+          "Time": {
+            "description": "Seconds since the first transaction in the dataset",
+            "minimum": 0.0,
+            "title": "Time",
+            "type": "number"
+          },
+          "V1": {
+            "description": "Anonymised PCA component",
+            "title": "V1",
+            "type": "number"
+          },
+          "V10": {
+            "description": "Anonymised PCA component",
+            "title": "V10",
+            "type": "number"
+          },
+          "V11": {
+            "description": "Anonymised PCA component",
+            "title": "V11",
+            "type": "number"
+          },
+          "V12": {
+            "description": "Anonymised PCA component",
+            "title": "V12",
+            "type": "number"
+          },
+          "V13": {
+            "description": "Anonymised PCA component",
+            "title": "V13",
+            "type": "number"
+          },
+          "V14": {
+            "description": "Anonymised PCA component",
+            "title": "V14",
+            "type": "number"
+          },
+          "V15": {
+            "description": "Anonymised PCA component",
+            "title": "V15",
+            "type": "number"
+          },
+          "V16": {
+            "description": "Anonymised PCA component",
+            "title": "V16",
+            "type": "number"
+          },
+          "V17": {
+            "description": "Anonymised PCA component",
+            "title": "V17",
+            "type": "number"
+          },
+          "V18": {
+            "description": "Anonymised PCA component",
+            "title": "V18",
+            "type": "number"
+          },
+          "V19": {
+            "description": "Anonymised PCA component",
+            "title": "V19",
+            "type": "number"
+          },
+          "V2": {
+            "description": "Anonymised PCA component",
+            "title": "V2",
+            "type": "number"
+          },
+          "V20": {
+            "description": "Anonymised PCA component",
+            "title": "V20",
+            "type": "number"
+          },
+          "V21": {
+            "description": "Anonymised PCA component",
+            "title": "V21",
+            "type": "number"
+          },
+          "V22": {
+            "description": "Anonymised PCA component",
+            "title": "V22",
+            "type": "number"
+          },
+          "V23": {
+            "description": "Anonymised PCA component",
+            "title": "V23",
+            "type": "number"
+          },
+          "V24": {
+            "description": "Anonymised PCA component",
+            "title": "V24",
+            "type": "number"
+          },
+          "V25": {
+            "description": "Anonymised PCA component",
+            "title": "V25",
+            "type": "number"
+          },
+          "V26": {
+            "description": "Anonymised PCA component",
+            "title": "V26",
+            "type": "number"
+          },
+          "V27": {
+            "description": "Anonymised PCA component",
+            "title": "V27",
+            "type": "number"
+          },
+          "V28": {
+            "description": "Anonymised PCA component",
+            "title": "V28",
+            "type": "number"
+          },
+          "V3": {
+            "description": "Anonymised PCA component",
+            "title": "V3",
+            "type": "number"
+          },
+          "V4": {
+            "description": "Anonymised PCA component",
+            "title": "V4",
+            "type": "number"
+          },
+          "V5": {
+            "description": "Anonymised PCA component",
+            "title": "V5",
+            "type": "number"
+          },
+          "V6": {
+            "description": "Anonymised PCA component",
+            "title": "V6",
+            "type": "number"
+          },
+          "V7": {
+            "description": "Anonymised PCA component",
+            "title": "V7",
+            "type": "number"
+          },
+          "V8": {
+            "description": "Anonymised PCA component",
+            "title": "V8",
+            "type": "number"
+          },
+          "V9": {
+            "description": "Anonymised PCA component",
+            "title": "V9",
+            "type": "number"
+          },
+          "transaction_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transaction Id"
+          }
+        },
+        "required": [
+          "Time",
+          "Amount",
+          "V1",
+          "V2",
+          "V3",
+          "V4",
+          "V5",
+          "V6",
+          "V7",
+          "V8",
+          "V9",
+          "V10",
+          "V11",
+          "V12",
+          "V13",
+          "V14",
+          "V15",
+          "V16",
+          "V17",
+          "V18",
+          "V19",
+          "V20",
+          "V21",
+          "V22",
+          "V23",
+          "V24",
+          "V25",
+          "V26",
+          "V27",
+          "V28"
+        ],
+        "title": "Transaction",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Risk-scoring API for card transactions (not a real-time fraud platform). Request examples in these docs are SYNTHETIC.",
+    "title": "Fraud risk-scoring API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/model-info": {
+      "get": {
+        "operationId": "model_info_model_info_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Model Info",
+        "tags": [
+          "model"
+        ]
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "ready_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ready"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ready"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Ready",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/v1/explain": {
+      "post": {
+        "operationId": "explain_v1_explain_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "synthetic_typical": {
+                  "description": "Synthetic placeholder, not a real transaction.",
+                  "summary": "SYNTHETIC example (all V = 0)",
+                  "value": {
+                    "Amount": 25.0,
+                    "Time": 3600.0,
+                    "V1": 0.0,
+                    "V10": 0.0,
+                    "V11": 0.0,
+                    "V12": 0.0,
+                    "V13": 0.0,
+                    "V14": 0.0,
+                    "V15": 0.0,
+                    "V16": 0.0,
+                    "V17": 0.0,
+                    "V18": 0.0,
+                    "V19": 0.0,
+                    "V2": 0.0,
+                    "V20": 0.0,
+                    "V21": 0.0,
+                    "V22": 0.0,
+                    "V23": 0.0,
+                    "V24": 0.0,
+                    "V25": 0.0,
+                    "V26": 0.0,
+                    "V27": 0.0,
+                    "V28": 0.0,
+                    "V3": 0.0,
+                    "V4": 0.0,
+                    "V5": 0.0,
+                    "V6": 0.0,
+                    "V7": 0.0,
+                    "V8": 0.0,
+                    "V9": 0.0,
+                    "transaction_id": "synthetic-0001"
+                  }
+                },
+                "synthetic_unusual": {
+                  "description": "Synthetic placeholder, not a real transaction; no score is implied.",
+                  "summary": "SYNTHETIC example (a few large V values)",
+                  "value": {
+                    "Amount": 1.0,
+                    "Time": 86400.0,
+                    "V1": 0.0,
+                    "V10": -5.0,
+                    "V11": 0.0,
+                    "V12": -6.0,
+                    "V13": 0.0,
+                    "V14": -8.0,
+                    "V15": 0.0,
+                    "V16": 0.0,
+                    "V17": 0.0,
+                    "V18": 0.0,
+                    "V19": 0.0,
+                    "V2": 0.0,
+                    "V20": 0.0,
+                    "V21": 0.0,
+                    "V22": 0.0,
+                    "V23": 0.0,
+                    "V24": 0.0,
+                    "V25": 0.0,
+                    "V26": 0.0,
+                    "V27": 0.0,
+                    "V28": 0.0,
+                    "V3": 0.0,
+                    "V4": 4.0,
+                    "V5": 0.0,
+                    "V6": 0.0,
+                    "V7": 0.0,
+                    "V8": 0.0,
+                    "V9": 0.0,
+                    "transaction_id": "synthetic-0002"
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/Transaction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExplainResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Explain",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
+    "/v1/predict": {
+      "post": {
+        "operationId": "predict_v1_predict_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "synthetic_typical": {
+                  "description": "Synthetic placeholder, not a real transaction.",
+                  "summary": "SYNTHETIC example (all V = 0)",
+                  "value": {
+                    "Amount": 25.0,
+                    "Time": 3600.0,
+                    "V1": 0.0,
+                    "V10": 0.0,
+                    "V11": 0.0,
+                    "V12": 0.0,
+                    "V13": 0.0,
+                    "V14": 0.0,
+                    "V15": 0.0,
+                    "V16": 0.0,
+                    "V17": 0.0,
+                    "V18": 0.0,
+                    "V19": 0.0,
+                    "V2": 0.0,
+                    "V20": 0.0,
+                    "V21": 0.0,
+                    "V22": 0.0,
+                    "V23": 0.0,
+                    "V24": 0.0,
+                    "V25": 0.0,
+                    "V26": 0.0,
+                    "V27": 0.0,
+                    "V28": 0.0,
+                    "V3": 0.0,
+                    "V4": 0.0,
+                    "V5": 0.0,
+                    "V6": 0.0,
+                    "V7": 0.0,
+                    "V8": 0.0,
+                    "V9": 0.0,
+                    "transaction_id": "synthetic-0001"
+                  }
+                },
+                "synthetic_unusual": {
+                  "description": "Synthetic placeholder, not a real transaction; no score is implied.",
+                  "summary": "SYNTHETIC example (a few large V values)",
+                  "value": {
+                    "Amount": 1.0,
+                    "Time": 86400.0,
+                    "V1": 0.0,
+                    "V10": -5.0,
+                    "V11": 0.0,
+                    "V12": -6.0,
+                    "V13": 0.0,
+                    "V14": -8.0,
+                    "V15": 0.0,
+                    "V16": 0.0,
+                    "V17": 0.0,
+                    "V18": 0.0,
+                    "V19": 0.0,
+                    "V2": 0.0,
+                    "V20": 0.0,
+                    "V21": 0.0,
+                    "V22": 0.0,
+                    "V23": 0.0,
+                    "V24": 0.0,
+                    "V25": 0.0,
+                    "V26": 0.0,
+                    "V27": 0.0,
+                    "V28": 0.0,
+                    "V3": 0.0,
+                    "V4": 4.0,
+                    "V5": 0.0,
+                    "V6": 0.0,
+                    "V7": 0.0,
+                    "V8": 0.0,
+                    "V9": 0.0,
+                    "transaction_id": "synthetic-0002"
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/Transaction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Predict",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
+    "/v1/predict/batch": {
+      "post": {
+        "operationId": "predict_batch_v1_predict_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "synthetic_batch": {
+                  "description": "Synthetic placeholders, not real transactions.",
+                  "summary": "SYNTHETIC batch of 2",
+                  "value": {
+                    "transactions": [
+                      {
+                        "Amount": 25.0,
+                        "Time": 3600.0,
+                        "V1": 0.0,
+                        "V10": 0.0,
+                        "V11": 0.0,
+                        "V12": 0.0,
+                        "V13": 0.0,
+                        "V14": 0.0,
+                        "V15": 0.0,
+                        "V16": 0.0,
+                        "V17": 0.0,
+                        "V18": 0.0,
+                        "V19": 0.0,
+                        "V2": 0.0,
+                        "V20": 0.0,
+                        "V21": 0.0,
+                        "V22": 0.0,
+                        "V23": 0.0,
+                        "V24": 0.0,
+                        "V25": 0.0,
+                        "V26": 0.0,
+                        "V27": 0.0,
+                        "V28": 0.0,
+                        "V3": 0.0,
+                        "V4": 0.0,
+                        "V5": 0.0,
+                        "V6": 0.0,
+                        "V7": 0.0,
+                        "V8": 0.0,
+                        "V9": 0.0,
+                        "transaction_id": "synthetic-0001"
+                      },
+                      {
+                        "Amount": 1.0,
+                        "Time": 86400.0,
+                        "V1": 0.0,
+                        "V10": -5.0,
+                        "V11": 0.0,
+                        "V12": -6.0,
+                        "V13": 0.0,
+                        "V14": -8.0,
+                        "V15": 0.0,
+                        "V16": 0.0,
+                        "V17": 0.0,
+                        "V18": 0.0,
+                        "V19": 0.0,
+                        "V2": 0.0,
+                        "V20": 0.0,
+                        "V21": 0.0,
+                        "V22": 0.0,
+                        "V23": 0.0,
+                        "V24": 0.0,
+                        "V25": 0.0,
+                        "V26": 0.0,
+                        "V27": 0.0,
+                        "V28": 0.0,
+                        "V3": 0.0,
+                        "V4": 4.0,
+                        "V5": 0.0,
+                        "V6": 0.0,
+                        "V7": 0.0,
+                        "V8": 0.0,
+                        "V9": 0.0,
+                        "transaction_id": "synthetic-0002"
+                      }
+                    ]
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/BatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Predict Batch",
+        "tags": [
+          "v1"
+        ]
+      }
+    }
+  }
+}

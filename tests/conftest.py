@@ -69,3 +69,23 @@ def synthetic_artifact_dir(tmp_path_factory: pytest.TempPathFactory):  # type: i
 def synthetic_transaction() -> dict:
     """One synthetic request body (all V = 0)."""
     return {"Time": 3600.0, "Amount": 25.0, **{f"V{i}": 0.0 for i in range(1, 29)}}
+
+
+@pytest.fixture(scope="session", autouse=True)
+def synthetic_model_path(synthetic_artifact_dir):  # type: ignore[no-untyped-def]
+    """Point MODEL_PATH at the synthetic artifact for the WHOLE session.
+
+    Any Settings.from_env() during tests therefore loads the synthetic model, never the real
+    models/model.joblib (rule 8). MODELS_DIR is cleared so it cannot override this.
+    """
+    import os
+
+    saved = {k: os.environ.get(k) for k in ("MODEL_PATH", "MODELS_DIR")}
+    os.environ["MODEL_PATH"] = str(synthetic_artifact_dir / "model.joblib")
+    os.environ.pop("MODELS_DIR", None)
+    yield os.environ["MODEL_PATH"]
+    for key, value in saved.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value

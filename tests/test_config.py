@@ -55,3 +55,24 @@ def test_bad_split_raises(tmp_path: Path) -> None:
     bad.write_text(text.replace("test: 0.2", "test: 0.3"), encoding="utf-8")
     with pytest.raises(ValueError, match="sum to 1.0"):
         load_config(bad)
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "match"),
+    [
+        ("target_recall: 0.85", "target_recall: 1.5", "target_recall"),
+        ("review_cost_per_alert: 5.0", "review_cost_per_alert: -1.0", "non-negative"),
+        ("n_trials: 50", "n_trials: 0", "tuning"),
+        ("n_resamples: 1000", "n_resamples: 0", "bootstrap"),
+        ("none_tolerance: 0.05", "none_tolerance: 1.5", "none_tolerance"),
+        ("block_precision: 0.90", "block_precision: 0.0", "block_precision"),
+        ("stability_resamples: 200", "stability_resamples: 0", "stability_resamples"),
+    ],
+)
+def test_invalid_settings_fail_fast(tmp_path: Path, old: str, new: str, match: str) -> None:
+    text = (PROJECT_ROOT / "configs" / "config.yaml").read_text(encoding="utf-8")
+    assert old in text
+    bad = tmp_path / "bad.yaml"
+    bad.write_text(text.replace(old, new), encoding="utf-8")
+    with pytest.raises(ValueError, match=match):
+        load_config(bad)

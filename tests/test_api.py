@@ -253,3 +253,80 @@ def test_openapi_examples_are_labelled_synthetic(api) -> None:  # type: ignore[n
     assert set(examples) == set(TRANSACTION_EXAMPLES)
     assert all("SYNTHETIC" in e["summary"] for e in examples.values())
     assert SYNTHETIC_TYPICAL["transaction_id"].startswith("synthetic-")
+
+
+# --- Phase 12: log privacy with distinctive markers (all loggers, success + validation error) -
+
+MARKERS = {"V1": 987654.321, "V2": -123456.789}
+MARKER_TEXT = ("987654.321", "123456.789", "987654", "123456")
+
+
+def _all_log_text(caplog) -> str:  # type: ignore[no-untyped-def]
+    """Every captured record from EVERY logger, raw message + args + JSON rendering."""
+    fmt = JsonFormatter()
+    return "\n".join(f"{r.getMessage()} {r.args} {getattr(r, 'fields', '')} {fmt.format(r)}"
+                     for r in caplog.records)  # fmt: skip
+
+
+@pytest.mark.parametrize("path", ["/v1/predict", "/v1/explain", "/v1/predict/batch"])
+def test_marker_feature_values_never_reach_logs(api, synthetic_transaction, caplog, path) -> None:  # type: ignore[no-untyped-def]
+    tx = {**synthetic_transaction, **MARKERS}
+    body = {"transactions": [tx]} if path.endswith("batch") else tx
+    with caplog.at_level(logging.DEBUG):  # root level: capture all loggers
+        assert api.post(path, json=body).status_code == 200
+    text = _all_log_text(caplog)
+    assert "prediction" in text  # the request WAS logged ...
+    assert not any(m in text for m in MARKER_TEXT)  # ... without any feature value
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda t: t.update(Amount=-1.0),  # invalid sibling field
+        lambda t: t.update(V3="not-a-number"),  # type error on a feature
+        lambda t: t.update(V29=987654.321),  # extra field carrying a marker
+    ],
+    ids=["invalid_amount", "type_error", "extra_field"],
+)
+def test_validation_errors_echo_no_feature_values(
+    api, synthetic_transaction, caplog, mutate
+) -> None:  # type: ignore[no-untyped-def]
+    tx = {**synthetic_transaction, **MARKERS}
+    mutate(tx)
+    with caplog.at_level(logging.DEBUG):
+        r = api.post("/v1/predict", json=tx)
+    assert r.status_code == 422
+    assert not any(m in r.text for m in MARKER_TEXT)  # response body
+    assert not any(m in _all_log_text(caplog) for m in MARKER_TEXT)  # logs
+
+
+# --- Phase 12: MODEL_PATH selects the artifact; no real model needed ------------------------
+
+
+def test_model_path_env_is_used(synthetic_model_path) -> None:  # type: ignore[no-untyped-def]
+    """The session fixture points MODEL_PATH at the SYNTHETIC artifact; from_env obeys it."""
+    s = Settings.from_env()
+    assert s.models_dir == Path(synthetic_model_path).parent
+    with TestClient(create_app(s)) as c:
+        assert c.get("/ready").json()["model_version"] == "synthetic-test-v0"
+
+
+def test_model_path_must_name_the_artifact(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("MODEL_PATH", str(tmp_path / "fraud_model.joblib"))
+    with pytest.raises(ValueError, match="model.joblib"):
+        Settings.from_env()
+
+
+def test_models_dir_fallback_when_no_model_path(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.delenv("MODEL_PATH", raising=False)
+    monkeypatch.setenv("MODELS_DIR", str(tmp_path))
+    assert Settings.from_env().models_dir == tmp_path
+
+
+def test_missing_model_path_target_gives_503(
+    monkeypatch, tmp_path: Path, synthetic_transaction
+) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("MODEL_PATH", str(tmp_path / "model.joblib"))  # does not exist
+    with TestClient(create_app(Settings.from_env())) as c:
+        assert c.get("/ready").status_code == 503
+        assert c.post("/v1/predict", json=synthetic_transaction).status_code == 503

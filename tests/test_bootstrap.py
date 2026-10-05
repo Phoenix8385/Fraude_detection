@@ -78,3 +78,25 @@ def test_bootstrap_rejects_single_class_and_mismatched_names(scored: dict) -> No
         bootstrap_samples(np.zeros(500), {"a": scored["good"]}, {"a": 0.5}, amt, 5.0, 2, 0)
     with pytest.raises(ValueError, match="same models"):
         bootstrap_samples(scored["y"], {"a": scored["good"]}, {"b": 0.5}, amt, 5.0, 2, 0)
+
+
+def test_bootstrap_bounds_are_valid_for_every_metric(scored: dict) -> None:
+    """Phase 12: ci_low <= ci_high; rates stay in [0, 1]; counts/costs are non-negative."""
+    y, amt = scored["y"], scored["amounts"]
+    samples = bootstrap_samples(y, {"m": scored["good"]}, {"m": 0.5}, amt, 5.0, 300, seed=42)
+    point = compute_metrics(y, scored["good"], 0.5, amt, 5.0)
+    ci = summarize_ci(point, samples["m"], 0.95)
+    for metric, c in ci.items():
+        assert c["ci_low"] <= c["ci_high"], metric
+    eps = 1e-12  # np.percentile interpolating between 1.0 values can return 1.0000000000000002
+    for metric in ("pr_auc", "recall", "precision"):
+        assert -eps <= ci[metric]["ci_low"] and ci[metric]["ci_high"] <= 1.0 + eps
+    assert ci["alerts_per_1000"]["ci_low"] >= 0 and ci["expected_cost"]["ci_low"] >= 0
+
+
+def test_wider_level_gives_wider_interval(scored: dict) -> None:
+    samples = bootstrap_samples(scored["y"], {"m": scored["good"]}, {"m": 0.5},
+                                scored["amounts"], 5.0, 300, seed=42)["m"]["pr_auc"]  # fmt: skip
+    lo90, hi90 = percentile_ci(samples, 0.90)
+    lo99, hi99 = percentile_ci(samples, 0.99)
+    assert lo99 <= lo90 and hi90 <= hi99
