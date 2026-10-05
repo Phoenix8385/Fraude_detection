@@ -330,3 +330,27 @@ def test_missing_model_path_target_gives_503(
     with TestClient(create_app(Settings.from_env())) as c:
         assert c.get("/ready").status_code == 503
         assert c.post("/v1/predict", json=synthetic_transaction).status_code == 503
+
+
+# --- regression: every operation shown in Swagger is actually routable (never 404) --------
+
+
+def test_post_v1_predict_is_routed_not_404(api, synthetic_transaction) -> None:  # type: ignore[no-untyped-def]
+    """Regression for "Swagger shows POST /v1/predict but the server answers 404"."""
+    r = api.post("/v1/predict", json={**synthetic_transaction, "transaction_id": "synthetic-0001"})
+    assert r.status_code == 200, r.text
+    assert r.json()["transaction_id"] == "synthetic-0001"
+    assert any(getattr(rt, "path", None) == "/v1/predict" and "POST" in rt.methods
+               for rt in api.app.routes)  # fmt: skip
+
+
+def test_every_openapi_operation_is_routable(api, synthetic_transaction) -> None:  # type: ignore[no-untyped-def]
+    """Each path+method in /openapi.json must reach a handler: 404/405 = schema and routing
+    disagree. Bodies are minimal valid payloads; any non-404/405 status proves routing."""
+    bodies = {"/v1/predict/batch": {"transactions": [synthetic_transaction]}}
+    spec = api.get("/openapi.json").json()
+    for path, ops in spec["paths"].items():
+        for method in ops:
+            r = api.request(method.upper(), path, json=bodies.get(path, synthetic_transaction)
+                            if method == "post" else None)  # fmt: skip
+            assert r.status_code not in (404, 405), f"{method.upper()} {path} -> {r.status_code}"
