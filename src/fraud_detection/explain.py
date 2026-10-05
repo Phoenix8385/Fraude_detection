@@ -6,7 +6,9 @@ Method: for a scaled linear model the log-odds are exactly
 so each feature's contribution is coef_j * z_j and the base value is the intercept (the
 log-odds of a transaction sitting at the training mean). This equals linear SHAP with the
 training mean as background, needs no `shap` library at serving time, and sums exactly to
-the model's log-odds.
+the model's log-odds. The pure functions (linear_pipeline, linear_contributions,
+explain_row) live in fraud_detection.contributions so the API can import them without
+matplotlib/MLflow; they are re-exported here unchanged.
 
 IMPORTANT: contributions are in log-odds of the UNCALIBRATED Logistic Regression. The served
 fraud_probability additionally passes through the isotonic calibrator, which is monotonic, so
@@ -36,6 +38,12 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 from fraud_detection.config import Config, load_config  # noqa: E402
+from fraud_detection.contributions import (  # noqa: E402, F401  (re-exported)
+    TOP_K,
+    explain_row,
+    linear_contributions,
+    linear_pipeline,
+)
 from fraud_detection.features import MODEL_FEATURES  # noqa: E402
 from fraud_detection.schema import TARGET  # noqa: E402
 from fraud_detection.train import load_part  # noqa: E402
@@ -44,57 +52,6 @@ logger = logging.getLogger(__name__)
 
 HEADLINE_SPLIT = "time"
 SAMPLE_ROWS = 2000
-TOP_K = 5
-
-
-def linear_pipeline(model: Any) -> Any:
-    """The scaler + LogisticRegression pipeline inside the production model.
-
-    Accepts the pipeline itself or CalibratedClassifierCV(FrozenEstimator(pipeline)).
-    """
-    est = model
-    if hasattr(est, "calibrated_classifiers_"):
-        est = est.calibrated_classifiers_[0].estimator
-    while not hasattr(est, "named_steps") and hasattr(est, "estimator"):
-        est = est.estimator  # FrozenEstimator -> wrapped pipeline
-    steps = getattr(est, "named_steps", {})
-    if "scaler" not in steps or not hasattr(steps.get("model"), "coef_"):
-        raise TypeError("expected a fitted scaler + linear model pipeline")
-    return est
-
-
-def linear_contributions(model: Any, X: pd.DataFrame) -> tuple[pd.DataFrame, float]:
-    """Per-row, per-feature log-odds contributions and the base value (intercept).
-
-    base + contributions.sum(axis=1) == the uncalibrated model's decision_function(X).
-    """
-    pipe = linear_pipeline(model)
-    z = pipe.named_steps["scaler"].transform(X[MODEL_FEATURES])
-    lr = pipe.named_steps["model"]
-    contrib = pd.DataFrame(z * lr.coef_[0], columns=MODEL_FEATURES, index=X.index)
-    return contrib, float(lr.intercept_[0])
-
-
-def explain_row(model: Any, row: pd.DataFrame, top_k: int = TOP_K) -> dict[str, Any]:
-    """Top-k contributions for ONE transaction, sorted by |contribution|.
-
-    Returned values are in log-odds of the UNCALIBRATED model (see module docstring);
-    "value" echoes the caller's own input and is not stored anywhere by this function.
-    """
-    if len(row) != 1:
-        raise ValueError("explain_row expects exactly one row")
-    contrib, base = linear_contributions(model, row)
-    c = contrib.iloc[0]
-    order = c.abs().sort_values(ascending=False).index[:top_k]
-    return {
-        "base_value": base,
-        "log_odds": base + float(c.sum()),
-        "units": "log-odds, uncalibrated model",
-        "contributions": [
-            {"feature": f, "value": float(row[f].iloc[0]), "contribution": float(c[f])}
-            for f in order
-        ],
-    }
 
 
 def global_importance(contrib: pd.DataFrame, model: Any) -> pd.DataFrame:

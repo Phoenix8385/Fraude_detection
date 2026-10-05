@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "fraud_detection"
+API = Path(__file__).resolve().parents[1] / "api"  # the service must never touch test data
 
 ALLOWED_TEST_LITERAL = {"splits.py", "evaluate.py"}
 # train.load_part is the guarded loader: it names "test" only to refuse it.
@@ -44,7 +45,10 @@ def _violations(path: Path) -> list[str]:
     return found
 
 
-@pytest.mark.parametrize("path", sorted(SRC.glob("*.py")), ids=lambda p: p.name)
+@pytest.mark.parametrize(
+    "path", sorted([*SRC.glob("*.py"), *API.glob("*.py")]),
+    ids=lambda p: f"{p.parent.name}/{p.name}",
+)
 def test_module_does_not_touch_test_split(path: Path) -> None:
     assert _violations(path) == []
 

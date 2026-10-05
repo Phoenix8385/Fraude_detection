@@ -59,7 +59,10 @@
   fallback; stratified met 0.9149 on validation). Context-only Phase 5 baselines, test PR-AUC
   (time / stratified): dummy 0.0013 / 0.0017, untuned logreg 0.7578 / 0.6860, iforest
   0.0457 / 0.0798. Stratified-vs-time paragraph: final_summary.md (no causal claim made).
-- Phase 11 p95 latency:
+- Phase 11 p95 latency: 14.76 ms (p50 10.94, p99 16.75, max 19.45; 1,000 sequential warm
+  POST /v1/predict via in-process TestClient, synthetic payload, logreg-iso-v1.0.0;
+  scripts/latency_benchmark.py, 2026-10-05). PRD target p95 < 50 ms met. First (cold)
+  request under uvicorn took 77.5 ms.
 - Live URL:
 
 ## Phase 1 decisions (2026-09-24)
@@ -404,3 +407,53 @@ no production explanations for the stratified XGBoost; no predict.py (Phase 11).
   isotonic calibration produces tied values (tied quantile edges merged); one bin, (-inf, 0.0),
   has a zero reference proportion. The Phase 17 PSI implementation must handle zero reference
   (and current) proportions safely, e.g. with a documented small floor, never log(0) or /0.
+
+## Phase 11 decisions & results (2026-10-05) — Predictor + FastAPI /v1 core
+KING decisions: serve models/model.joblib (frozen time LR + isotonic); model_version
+logreg-iso-v1.0.0 from metadata (not xgb-v1.0.0); thresholds read from model_meta.json
+(review 0.02, block 0.23; never the guide's 0.15/0.80 examples); /v1/explain reuses the Phase
+10 LR contributions (top 5, uncalibrated log-odds, "not causes"); SYNTHETIC OpenAPI examples
+only (no valid_thr rows); NullStore + dependency injection, no database.
+Defaults applied (open questions left unanswered; KING to confirm, all reversible):
+- Batch max 500 (architecture.md). CONFLICT: evaluation.md test list says "batch>1000 422";
+  tests check 501 -> 422 and 500 -> 200. evaluation.md wording not changed.
+- Rate limiting via slowapi, per client IP, ROUTE-SPECIFIC (KING correction, Phase 11
+  contract): /v1/predict 60/minute, /v1/predict/batch 60/minute, /v1/explain 20/minute.
+  Fixed constants in api/settings.py (no env override; the earlier generic 120/minute
+  RATE_LIMIT default was removed). Each route has its own counter (tested at limit+1).
+  NEW DEPENDENCY: slowapi 0.1.10 (+ limits 5.8.0, Deprecated 1.3.1, wrapt 2.5.0) added to
+  requirements.txt, requirements-api.txt and requirements-lock.txt; nothing else changed.
+- requirements-api.lock CREATED (rule 21; it did not exist before) by
+  scripts/make_api_lock.py: exact pins for the closure of requirements-api.txt, identical to
+  requirements-lock.txt (script fails otherwise); 43 pins. pandera added to
+  requirements-api.txt because it is imported at runtime (features.py -> schema.py).
+  Verified: a clean venv with ONLY `pip install --no-deps -r requirements-api.lock` passes
+  `pip check` and runs uvicorn + all routes on the real artifact with no version-drift
+  warning. Linux-only, not pinnable from Windows: uvloop (optional uvicorn speed-up) and
+  nvidia-nccl-cu12 (pulled by xgboost on Linux; large) -> Phase 13 Docker decision.
+  Test-only tools (httpx for TestClient, pytest) are intentionally not in the API lock.
+- contributions.py: linear_pipeline / linear_contributions / explain_row moved unchanged from
+  explain.py (re-exported there) so the API imports no matplotlib/MLflow. Phase 10 outputs and
+  tests unchanged.
+- JSON logs via stdlib (no new dependency); whitelisted fields only: request_id, endpoint,
+  model_version, fraud_probability, risk_tier, recommended_action, latency_ms, amount. Never
+  V1..V28 (tested with a marker value). 422 messages list field + reason only, not values.
+- "Known fraud row scores high" (DONE WHEN): one real valid_thr fraud row scored IN MEMORY via
+  Predictor (no log/file) -> fraud_probability 0.7680, HIGH/HOLD. Only score + tier recorded.
+Contract (architecture.md v2): GET /health (liveness, open), GET /ready (503 if no model;
+model_version, db_ok, store, store_failures; open), GET /model-info (whitelisted metadata,
+auth), POST /v1/predict, /v1/predict/batch, /v1/explain (auth + rate limit). Response:
+transaction_id, fraud_probability (calibrated), risk_tier, recommended_action, is_flagged
+(p >= t_review), thresholds{review, block}, model_version, latency_ms. Errors:
+{"error": {code, message, request_id}} for 401/422/429/503; X-Request-ID on every response.
+Auth: X-API-Key only when API_KEY env is set (compare_digest). CORS from ALLOWED_ORIGINS.
+Artifact load failure -> service starts, /ready + scoring routes 503. Store errors are
+swallowed + counted (never fail a prediction). Settings only from env (api/settings.py).
+- ruff: added [tool.ruff.lint.flake8-bugbear] extend-immutable-calls for fastapi.Depends/Body
+  (FastAPI's DI idiom; Annotated[] cannot be used with postponed annotations + local deps).
+- Leakage test now also scans api/*.py.
+- Tests: 233 passed (40 new: test_api.py, test_predict.py on a synthetic artifact in conftest,
+  thresholds 0.3/0.7 to prove they come from metadata). api/ + predict.py coverage 100%.
+- Notes for later phases: (1) Phase 13 — pandera is now in requirements-api.txt/lock (needed by
+  schema.py); xgboost's Linux nvidia-nccl-cu12 dependency will bloat the image. (2) starlette warns that httpx in TestClient is deprecated
+  (httpx2); informational only. (3) uvicorn verified: /docs, /openapi.json, /ready, /v1/predict.

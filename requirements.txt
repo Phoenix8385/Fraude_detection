@@ -26,6 +26,7 @@ joblib
 fastapi
 uvicorn[standard]
 pydantic>=2
+slowapi
 httpx
 
 # Testing & linting

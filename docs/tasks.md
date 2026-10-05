@@ -15,7 +15,7 @@
 - [x] Phase 10 SHAP, artifact, reference profile, model card
 
 ## Part B - Service (release v1.0.0)
-- [ ] Phase 11 Predictor + FastAPI /v1 core
+- [x] Phase 11 Predictor + FastAPI /v1 core
 - [ ] Phase 12 Test hardening (>=85%)
 - [ ] Phase 13 Docker (API)
 - [ ] Phase 14 CI/CD + live Render deploy + tag v1.0.0
@@ -27,4 +27,4 @@
 - [ ] Phase 18 Compose, final deploy, README, runbook, tag v1.1.0
 
 ## Current phase
-Phase 11 — NOT STARTED; awaiting KING approval
+Phase 12 — NOT STARTED; awaiting KING approval
