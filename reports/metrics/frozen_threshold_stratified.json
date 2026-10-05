@@ -1,0 +1,20 @@
+{
+  "split": "stratified",
+  "threshold": 0.01,
+  "recall": 0.9148936170212766,
+  "precision": 0.7413793103448276,
+  "f1": 0.819047619047619,
+  "expected_cost": 1556.53,
+  "met_target": true,
+  "rule": "min expected_cost s.t. recall >= 0.85",
+  "target_recall": 0.85,
+  "alerts_per_1000": 2.0441969478024884,
+  "model": "xgb",
+  "mlflow_run_id": "7add1a3966da40feae2da4fd7f3f1b24",
+  "calibration_kept": true,
+  "calibration_method": "FrozenEstimator + CalibratedClassifierCV(method='isotonic', cv=5-fold)",
+  "brier_raw": 0.00033744159736670554,
+  "brier_calibrated": 0.0003205699158104513,
+  "valid_cal_rows": 28372,
+  "valid_thr_rows": 28373
+}

@@ -1,0 +1,20 @@
+{
+  "split": "time",
+  "threshold": 0.95,
+  "recall": 0.8275862068965517,
+  "precision": 0.96,
+  "f1": 0.888888888888889,
+  "expected_cost": 1353.48,
+  "met_target": false,
+  "rule": "no threshold reaches recall 0.85; max recall, min cost",
+  "target_recall": 0.85,
+  "alerts_per_1000": 0.8811193740527967,
+  "model": "xgb_weighted",
+  "mlflow_run_id": "487ebf57942c4d11ba43a64704ed3d40",
+  "calibration_kept": false,
+  "calibration_method": "FrozenEstimator + CalibratedClassifierCV(method='isotonic', cv=5-fold)",
+  "brier_raw": 0.0002747107355389744,
+  "brier_calibrated": 0.0002917253344100131,
+  "valid_cal_rows": 28372,
+  "valid_thr_rows": 28373
+}
